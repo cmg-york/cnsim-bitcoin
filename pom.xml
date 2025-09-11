@@ -4,10 +4,10 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>ca.yorku.cmg</groupId>
-  <artifactId>cnsim</artifactId>
+  <artifactId>cnsim-bitcoin</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <packaging>jar</packaging>
-  <name>cnsim</name>
+  <name>cnsim-bitcoin</name>
   <!-- FIXME change it to the project's website -->
   <url>http://www.example.com</url>
 
@@ -57,6 +57,16 @@
       <version>5.11.0</version>
       <scope>test</scope>
     </dependency>
+    
+    
+    <dependency>
+    <groupId>ca.yorku.cmg.cnsim</groupId>
+    <artifactId>cnsim-engine</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <scope>system</scope>
+    <systemPath>${project.basedir}/lib/cnsim-engine-0.0.1-SNAPSHOT.jar</systemPath>
+</dependency>
+    
   </dependencies>
 
   <build>
