@@ -105,35 +105,39 @@ public class BitcoinReporter extends Reporter {
 	 * @author Sotirios Liaskos
 	 */
 	public static void flushBlockReport() {
-		FileWriter writer;
-		try {
-			writer = new FileWriter(Reporter.path + "BlockLog - " + Reporter.runId + ".csv");
-			for(String str: blockLog) {
-				  writer.write(str + System.lineSeparator());
-				}
-			writer.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		} 
+		if (BitcoinReporter.reportBlockEvents) {
+			FileWriter writer;
+			try {
+				writer = new FileWriter(Reporter.path + "BlockLog - " + Reporter.runId + ".csv");
+				for(String str: blockLog) {
+					  writer.write(str + System.lineSeparator());
+					}
+				writer.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			} 
+		}
 	}
 
 
 	/**
-	 * Save Blockchain report to file. File name is "Blockchain - [Simulation Date Time].csv"
+	 * Save Blockchain report to file. File name is "StructureLog - [Simulation Date Time].csv"
 	 * 
 	 * @author Sotirios Liaskos
 	 */
 	public static void flushStructReport() {
-		FileWriter writer;
-		try {
-			writer = new FileWriter(Reporter.path + "StructureLog - " + Reporter.runId + ".csv");
-			for(String str: structureLog) {
-				  writer.write(str + System.lineSeparator());
-				}
-			writer.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		} 
+		if (BitcoinReporter.reportStructureEvents) {
+			FileWriter writer;
+			try {
+				writer = new FileWriter(Reporter.path + "StructureLog - " + Reporter.runId + ".csv");
+				for(String str: structureLog) {
+					  writer.write(str + System.lineSeparator());
+					}
+				writer.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
 	}
 	
 }

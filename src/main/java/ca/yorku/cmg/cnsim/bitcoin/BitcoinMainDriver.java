@@ -31,8 +31,12 @@ public class BitcoinMainDriver {
 
     private void run(String[] args) {
     	
-        System.out.println("CNSim ver");
+        System.out.println("");
                 
+        Package pkg = ca.yorku.cmg.cnsim.engine.Config.class.getPackage();
+        System.out.println("  * CNSim Engine Version: " + pkg.getImplementationVersion());
+        
+        
         System.out.println("  * Setting up environment:");
     	System.out.println("  * Current directory: " + System.getProperty("user.dir"));
     	System.out.println("  * Initializing Configurator");
@@ -230,8 +234,8 @@ public class BitcoinMainDriver {
         
         //Schedule reporting events
         ReportEventFactory r = new ReportEventFactory();
-        r.scheduleBeliefReports_Interval(Config.getPropertyLong("sim.reporting.beliefReportInterval"), 
-        		s, Config.getPropertyLong("sim.reporting.beliefReportOffset"));
+        r.scheduleBeliefReports_Interval(Config.getPropertyLong("reporter.beliefReportInterval"), 
+        		s, Config.getPropertyLong("reporter.beliefReportOffset"));
 
         /*
         // Assign a target transaction for malicious behavior

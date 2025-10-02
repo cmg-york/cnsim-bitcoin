@@ -59,13 +59,21 @@
     </dependency>
     
     
-    <dependency>
+    <!-- <dependency>
     <groupId>ca.yorku.cmg.cnsim</groupId>
     <artifactId>cnsim-engine</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <scope>system</scope>
     <systemPath>${project.basedir}/lib/cnsim-engine-0.0.1-SNAPSHOT.jar</systemPath>
 </dependency>
+    -->
+    
+    <dependency>
+  		<groupId>ca.yorku.cmg</groupId>
+		<artifactId>cnsim-engine</artifactId>
+  		<version>0.0.2-SNAPSHOT</version>
+	</dependency>
+    
     
   </dependencies>
 
@@ -181,10 +189,29 @@
             </executions>
       </plugin>
       
+      <!-- Uncomment if you want to creat a JAR that contains both engine and bitcoin 
+      <plugin>
+      <groupId>org.apache.maven.plugins</groupId>
+      <artifactId>maven-shade-plugin</artifactId>
+      <version>3.4.1</version>
+      <executions>
+        <execution>
+          <phase>package</phase>
+          <goals>
+            <goal>shade</goal>
+          </goals>
+          <configuration>
+            <transformers>
+              <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                <mainClass>ca.yorku.cmg.cnsim.bitcoin.BitcoinMainDriver</mainClass>
+              </transformer>
+            </transformers>
+          </configuration>
+        </execution>
+      </executions>
+    </plugin>
+      -->
       
-      
-      
-       
     </plugins>
 
   </build>
