@@ -4,6 +4,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 
+import ca.yorku.cmg.cnsim.engine.config.Config;
 import ca.yorku.cmg.cnsim.engine.reporter.Reporter;
 
 /**
@@ -39,6 +40,12 @@ public class BitcoinReporter extends Reporter {
 				+ "BlockID,ParentID,Height,BlockContent,"
 				+ "EvtType,Difficulty,Cycles");
 		structureLog.add("SimID, SimTime, SysTime, NodeID, BlockID, ParentBlockID, Height, Content, Place");
+	}
+	
+	
+	public static void initialize() {
+		BitcoinReporter.reportBlockEvents(Config.getPropertyBoolean("reporter.reportBlockEvents"));
+        		BitcoinReporter.reportStructureEvents(Config.getPropertyBoolean("reporter.reportStructureEvents"));
 	}
 	
 	
@@ -98,6 +105,12 @@ public class BitcoinReporter extends Reporter {
 					);
 	}
 
+	
+	public static void flushCustomReports() {
+        BitcoinReporter.flushBlockReport();
+        BitcoinReporter.flushStructReport();
+	}
+	
 	
 	/**
 	 * Save Block report to file. File name is "BlockLog - [Simulation Date Time].csv"
