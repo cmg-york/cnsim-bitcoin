@@ -1,6 +1,6 @@
 package ca.yorku.cmg.cnsim.bitcoin;
 
-import ca.yorku.cmg.cnsim.bitcoin.Block;
+import ca.yorku.cmg.cnsim.bitcoin.structure.Block;
 import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
 import ca.yorku.cmg.cnsim.engine.transaction.TransactionGroup;
 

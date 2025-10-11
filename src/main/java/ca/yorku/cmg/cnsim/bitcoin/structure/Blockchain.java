@@ -1,5 +1,7 @@
-package ca.yorku.cmg.cnsim.bitcoin;
+package ca.yorku.cmg.cnsim.bitcoin.structure;
 
+import ca.yorku.cmg.cnsim.bitcoin.node.BitcoinNode;
+import ca.yorku.cmg.cnsim.bitcoin.reporter.BitcoinReporter;
 import ca.yorku.cmg.cnsim.engine.Debug;
 import ca.yorku.cmg.cnsim.engine.IStructure;
 import ca.yorku.cmg.cnsim.engine.Simulation;

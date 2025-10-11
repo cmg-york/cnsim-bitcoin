@@ -1,4 +1,4 @@
-package ca.yorku.cmg.cnsim.bitcoin;
+package ca.yorku.cmg.cnsim.bitcoin.node;
 
 import ca.yorku.cmg.cnsim.engine.transaction.ITxContainer;
 import ca.yorku.cmg.cnsim.engine.transaction.Transaction;

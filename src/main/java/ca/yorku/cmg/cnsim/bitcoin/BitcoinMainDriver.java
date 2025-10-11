@@ -2,6 +2,9 @@ package ca.yorku.cmg.cnsim.bitcoin;
 
 import java.io.IOException;
 
+import ca.yorku.cmg.cnsim.bitcoin.node.BitcoinNodeFactory;
+import ca.yorku.cmg.cnsim.bitcoin.reporter.BitcoinReporter;
+import ca.yorku.cmg.cnsim.bitcoin.structure.Block;
 import ca.yorku.cmg.cnsim.engine.Simulation;
 import ca.yorku.cmg.cnsim.engine.config.Config;
 import ca.yorku.cmg.cnsim.engine.config.ConfigInitializer;

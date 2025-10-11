@@ -3,8 +3,8 @@
  */
 package ca.yorku.cmg.cnsim.bitcoin;
 
-import ca.yorku.cmg.cnsim.bitcoin.Block;
-import ca.yorku.cmg.cnsim.bitcoin.Blockchain;
+import ca.yorku.cmg.cnsim.bitcoin.structure.Block;
+import ca.yorku.cmg.cnsim.bitcoin.structure.Blockchain;
 import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

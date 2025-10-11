@@ -1,4 +1,4 @@
-package ca.yorku.cmg.cnsim.bitcoin;
+package ca.yorku.cmg.cnsim.bitcoin.reporter;
 
 import java.io.FileWriter;
 import java.io.IOException;

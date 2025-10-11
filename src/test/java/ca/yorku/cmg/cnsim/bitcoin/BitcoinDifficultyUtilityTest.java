@@ -3,12 +3,13 @@ package ca.yorku.cmg.cnsim.bitcoin;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+
+import ca.yorku.cmg.cnsim.bitcoin.utils.BitcoinDifficultyUtility;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.math.BigInteger;
 import java.util.Random;
-
-import ca.yorku.cmg.cnsim.bitcoin.BitcoinDifficultyUtility;
 
 public class BitcoinDifficultyUtilityTest {
 	// initial target is 0x00000000FFFF0000000000000000000000000000000000000000000000000000,

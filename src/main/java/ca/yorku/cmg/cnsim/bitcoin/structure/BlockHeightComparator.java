@@ -1,4 +1,4 @@
-package ca.yorku.cmg.cnsim.bitcoin;
+package ca.yorku.cmg.cnsim.bitcoin.structure;
 
 import java.util.Comparator;
 

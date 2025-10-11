@@ -1,4 +1,4 @@
-package ca.yorku.cmg.cnsim.bitcoin;
+package ca.yorku.cmg.cnsim.bitcoin.structure;
 
 import ca.yorku.cmg.cnsim.engine.node.Node;
 import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
@@ -29,10 +29,12 @@ public class Block extends TransactionGroup implements Cloneable {
     // =========================
 
     // Parent in blockchain (if any)
-    protected TransactionGroup parent = null;
+    // TODO: this is supposed to be private!
+    public TransactionGroup parent = null;
 
     // Height in blockchain (if in one)
-    protected int height = 0;
+    //TODO: this is supposed to be private!
+    public int height = 0;
 
 
     // Times the block was validated
@@ -153,8 +155,9 @@ public class Block extends TransactionGroup implements Cloneable {
     // Overridden Methods
     // =========================
 
+    //TODO: this is supposed to be protected!
     @Override
-    protected Object clone() throws CloneNotSupportedException {
+    public Object clone() throws CloneNotSupportedException {
         return super.clone();
     }
 
