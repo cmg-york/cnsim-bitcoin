@@ -2,14 +2,9 @@ package ca.yorku.cmg.cnsim.bitcoin;
 
 import java.io.IOException;
 
-import ca.yorku.cmg.cnsim.engine.Config;
-import ca.yorku.cmg.cnsim.engine.ConfigInitializer;
-import ca.yorku.cmg.cnsim.engine.NetworkSamplerFactory;
-import ca.yorku.cmg.cnsim.engine.NodeSamplerFactory;
-import ca.yorku.cmg.cnsim.engine.Profiling;
-import ca.yorku.cmg.cnsim.engine.Sampler;
 import ca.yorku.cmg.cnsim.engine.Simulation;
-import ca.yorku.cmg.cnsim.engine.TransactionSamplerFactory;
+import ca.yorku.cmg.cnsim.engine.config.Config;
+import ca.yorku.cmg.cnsim.engine.config.ConfigInitializer;
 import ca.yorku.cmg.cnsim.engine.network.AbstractNetwork;
 import ca.yorku.cmg.cnsim.engine.network.FileBasedEndToEndNetwork;
 import ca.yorku.cmg.cnsim.engine.network.RandomEndToEndNetwork;
@@ -17,6 +12,10 @@ import ca.yorku.cmg.cnsim.engine.node.AbstractNodeFactory;
 import ca.yorku.cmg.cnsim.engine.node.Node;
 import ca.yorku.cmg.cnsim.engine.node.NodeSet;
 import ca.yorku.cmg.cnsim.engine.reporter.ReportEventFactory;
+import ca.yorku.cmg.cnsim.engine.sampling.Sampler;
+import ca.yorku.cmg.cnsim.engine.sampling.factories.NetworkSamplerFactory;
+import ca.yorku.cmg.cnsim.engine.sampling.factories.NodeSamplerFactory;
+import ca.yorku.cmg.cnsim.engine.sampling.factories.TransactionSamplerFactory;
 import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
 import ca.yorku.cmg.cnsim.engine.transaction.TransactionWorkload;
 
@@ -33,7 +32,7 @@ public class BitcoinMainDriver {
     	
         System.out.println("");
                 
-        Package pkg = ca.yorku.cmg.cnsim.engine.Config.class.getPackage();
+        Package pkg = ca.yorku.cmg.cnsim.engine.config.Config.class.getPackage();
         System.out.println("  * CNSim Engine Version: " + pkg.getImplementationVersion());
         
         
@@ -260,7 +259,7 @@ public class BitcoinMainDriver {
         //
 
         System.out.println("\n  * Running Simulation #" + simID);
-        Profiling.simBeginningTime = System.currentTimeMillis();
+        //Profiling.simBeginningTime = System.currentTimeMillis();
         s.run();
 
         //
