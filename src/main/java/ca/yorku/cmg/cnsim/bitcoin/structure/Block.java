@@ -8,109 +8,120 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * The Block class represents a block in a blockchain. It extends the TransactionGroup class.
- *
- * @author Sotirios Liaskos for the Enterprise Systems Group @ York University
+ * Represents a block in a blockchain. A {@linkplain Block} extends {@linkplain TransactionGroup} and contains
+ * information about the block's position in the chain, validation statistics, and node ownership.
+ * <p>
+ * This class is designed for use in blockchain simulations and supports cloning and equality checks.
+ * 
+ * @author Sotirios Liaskos for the Conceptual Modeling Group @ York University
+ * @see TransactionGroup
+ * @see Node
+ * @see Transaction
  */
 public class Block extends TransactionGroup implements Cloneable {
 
-    // =========================
-    // ID Generation & Management
-    // =========================
+    // ---------------------------------------------------------
+	// Unique Block ID & ID Management
+    // ---------------------------------------------------------
 
     private static int currID = 1;
 
+    /**
+     * Retrieves the next unique ID for a new {@linkplain Block}.
+     *
+     * @return the next block ID
+     */
     public static int getNextID() {
         return currID++;
     }
 
-    // ========================
-    // Fields for Reporting & Blockchain Structure
-    // =========================
+    /**
+     * Resets the next available block ID to 1.
+     * Useful for when starting a new simulation run.
+     */
+    public static void resetCurrID() {
+        currID = 1;
+    }
+    
+    public static int getCurrID() {
+        return currID;
+    }
 
-    // Parent in blockchain (if any)
-    // TODO: this is supposed to be private!
-    public TransactionGroup parent = null;
+    public static void setCurrID(int currID) {
+        Block.currID = currID;
+    }
+    
 
-    // Height in blockchain (if in one)
-    //TODO: this is supposed to be private!
-    public int height = 0;
+    
+    //---------------------------------------------------------
+    // FIELDS
+    //---------------------------------------------------------
+
+    /** Parent block in the blockchain (if any). */
+    private TransactionGroup parent = null;
+
+    /** Height of this block in the blockchain (if in one). */
+    private int height = 0;
 
 
-    // Times the block was validated
+    /** Simulation and system validation timestamps. */
     private long simTime_validation = -1;
     private long sysTime_validation = -1;
 
-    // ID of the node that validated the block
+    /** Node IDs for validation and current possession. */
     private int validationNodeID = -1;
-
-    // Node currently in possession of the block
     private int currentNodeID = -1;
 
-    // Difficulty under which validation took place
+    /** Difficulty under which validation took place */
     private double validationDifficulty = -1;
 
-    // Cycles dedicated for the validation of the block
+    /** Cycles dedicated for the validation of the block */
     private double validationCycles = -1;
 
-    // Last event that happened to the block
+    /** Last event that happened to the block */
     private String lastBlockEvent = "-1";
-
-
-    public Context context;
-
-    /**
-     * Contains information about the lifecycle of the block.
-     */
-    public static class Context {
-        public long simTime;
-        public long sysTime;
-        public int nodeID;
-        public String blockEvt;
-        public double difficulty;
-        public double cycles;
-    }
-
-    // =========================
-    // Constructors
-    // =========================
+   
+    
+    
+    // ---------------------------------------------------------
+	// CONSTRUCTORS
+    // ---------------------------------------------------------
 
     /**
-     * Constructs a new {@link Block} object with the next available ID and an empty {@link Context}.
+     * Constructs a new {@linkplain Block} object with the next available ID and an empty {@link Context}.
      */
     public Block() {
-        context = new Context();
         groupID = getNextID();
     }
 
     /**
-     * Constructs a new {@link Block} object with the next available ID and an initial lis of {@link Transaction}
-     * objects and an empty context.
+     * Constructs a new {@linkplain Block} with a unique ID and an initial list of {@linkplain Transaction}s.
      *
-     * @param initial The initial list of {@link Transaction} objects.
+     * @param initial initial list of transactions
      */
     public Block(List<Transaction> initial) {
         super(initial);
-        context = new Context();
         groupID = getNextID();
     }
 
-    // =========================
-    // Utility Methods
-    // =========================
+    
+    
+    // -------------------------------------------
+    // MAIN METHODS
+    // -------------------------------------------
 
     /**
-     * Updates {@linkplain Block} with information pertaining to its validation. Used in response to a validation event.
+     * Updates this {@linkplain Block} with validation information.
+     * Typically invoked in response to a block validation event.
      *
-     * @param newTransList The list of {@link Transaction} objects that are validated.
-     * @param simTime      Simulation time at which the validation event occurred.
-     * @param sysTime      Real time at which the validation event occurred.
-     * @param nodeID       ID of the {@link Node} in which validation took place.
-     * @param eventType    Textual description of the type of event (for logging).
-     *                     TODO: link to difficulty explanation.
-     * @param difficulty   Difficulty under which validation took place.
+     * @param newTransList the {@linkplain TransactionGroup} representing validated transactions
+     * @param simTime      simulation time of the validation
+     * @param sysTime      system time of the validation
+     * @param nodeID       ID of the {@linkplain Node} performing validation
+     * @param eventType    textual description of the event (for logging)
+     * @param difficulty   difficulty under which the block was validated
      *                     TODO: check if this is correct.
-     * @param cycles       The number of cycles (hashes) expended for the validation.
+     * @param cycles       computational cycles spent for validation
      */
     public void validateBlock(
             TransactionGroup newTransList,
@@ -121,41 +132,31 @@ public class Block extends TransactionGroup implements Cloneable {
             double difficulty,
             double cycles
     ) {
+    	/** Update statistics about the block based on the contained transactions */
         super.updateTransactionGroup(newTransList.getTransactions());
-//    	groupID = getID();
 
+        /** Record block information */
         simTime_validation = simTime;
         sysTime_validation = sysTime;
         validationNodeID = nodeID;
         currentNodeID = nodeID;
-
         validationDifficulty = difficulty;
         validationCycles = cycles;
-
-        // Deprecated
-        context = new Context();
-        context.simTime = simTime;
-        context.sysTime = sysTime;
-        context.nodeID = nodeID;
-        context.blockEvt = eventType;
-        context.difficulty = difficulty;
-        context.cycles = cycles;
     }
 
+
+
+    // ------------------------------------------
+    // OVERRIDDEN METHODS: IDENTITY AND CLONING
+    // ------------------------------------------
+
+    
     /**
-     * Checks if the {@linkplain Block} has a parent.
+     * Returns a shallow copy of this block.
      *
-     * @return {@code true} if the block has a parent, {@code false} otherwise.
+     * @return a clone of this block
+     * @throws CloneNotSupportedException if the superclass does not support cloning
      */
-    public boolean hasParent() {
-        return parent != null;
-    }
-
-    // =========================
-    // Overridden Methods
-    // =========================
-
-    //TODO: this is supposed to be protected!
     @Override
     public Object clone() throws CloneNotSupportedException {
         return super.clone();
@@ -173,47 +174,37 @@ public class Block extends TransactionGroup implements Cloneable {
                 && currentNodeID == block.currentNodeID
                 && Double.compare(validationDifficulty, block.validationDifficulty) == 0
                 && Double.compare(validationCycles, block.validationCycles) == 0
-                && Objects.equals(context, block.context)
                 && Objects.equals(parent, block.parent)
                 && Objects.equals(lastBlockEvent, block.lastBlockEvent);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(context, parent, height, simTime_validation, sysTime_validation, validationNodeID, currentNodeID, validationDifficulty, validationCycles, lastBlockEvent);
+        return Objects.hash(
+        		//context, 
+        		parent, height, simTime_validation, sysTime_validation, validationNodeID, currentNodeID, validationDifficulty, validationCycles, lastBlockEvent);
     }
 
-    // =========================
-    // Getters & Setters
-    // =========================
 
-    public static int getCurrID() {
-        return currID;
-    }
 
-    public static void setCurrID(int currID) {
-        Block.currID = currID;
-    }
-    
-	/**
-	 * Resets the next available ID to 1. To be used for moving to the next experiment.
-	 * @author Sotirios Liaskos
-	 */
-    public static void resetCurrID() {
-        currID = 1;
-    }
+
 
     
     
+    // ---------------------------------------------------------
+    // GETTERS, SETTERS AND OTHER UTILITY METHODS
+    // ---------------------------------------------------------
     
-    public Context getContext() {
-        return context;
+    
+    /**
+     * Checks if the {@linkplain Block} has a parent.
+     *
+     * @return {@code true} if the block has a parent, {@code false} otherwise.
+     */
+    public boolean hasParent() {
+        return parent != null;
     }
-
-    public void setContext(Context context) {
-        this.context = context;
-    }
-
+    
     public TransactionGroup getParent() {
         return parent;
     }

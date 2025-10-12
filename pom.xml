@@ -166,7 +166,12 @@
             <version>3.1.0</version>
             <configuration>
                 <mainClass>ca.yorku.cmg.cnsim.bitcoin.BitcoinMainDriver</mainClass>
+            <arguments>
+            <argument>-c</argument>
+            <argument>${project.basedir}/examples/configs/default.properties</argument>
+        </arguments>
             </configuration>
+
         </plugin>
         
         

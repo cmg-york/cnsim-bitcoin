@@ -93,7 +93,7 @@ public class MaliciousNodeBehavior implements NodeBehaviorStrategy {
         
         //TODO: why is this below a t and not a b?
         if (!isAttackInProgress && t.contains(targetTxID)) {
-            lastBlock = (Block) b.parent;
+            lastBlock = (Block) b.getParent();
             if (!node.blockchain.contains(b)) {
                 //reportBlockEvent(b, b.getContext().blockEvt);
                 handleNewBlockReceptionInAttack(b);
@@ -250,7 +250,7 @@ public class MaliciousNodeBehavior implements NodeBehaviorStrategy {
                     startAttack(b);
                     node.blockchain.addToStructure(b);
                     node.propagateContainer(b, time);
-                    lastBlock = (Block) b.parent;
+                    lastBlock = (Block) b.getParent();
                     node.stopMining();
                     node.resetNextValidationEvent();
                     node.reconstructMiningPool();
@@ -323,7 +323,7 @@ public class MaliciousNodeBehavior implements NodeBehaviorStrategy {
     private void revealHiddenChain() {
         for (int i = hiddenChain.size()-1; i >= 0; i--) {
             Block b = hiddenChain.get(i);
-            b.parent = i==0 ? lastBlock : hiddenChain.get(i-1);
+            b.setParent(i==0 ? lastBlock : hiddenChain.get(i-1));
             node.blockchain.addToStructure(b);
             node.propagateContainer(b, Simulation.currTime);
         }
@@ -396,7 +396,7 @@ public class MaliciousNodeBehavior implements NodeBehaviorStrategy {
     }
 
     private void checkAndRevealHiddenChain(Block b) {
-        publicChainGrowthSinceAttack = node.blockchain.getLongestTip().height - blockchainSizeAtAttackStart;
+        publicChainGrowthSinceAttack = node.blockchain.getLongestTip().getHeight() - blockchainSizeAtAttackStart;
         if (shouldRevealHiddenChain()) {
             BitcoinReporter.reportBlockEvent(
 					Simulation.currentSimulationID,

@@ -14,35 +14,42 @@ import java.util.ArrayList;
 import java.util.Collections;
 
 /**
- * The Bitcoin's blockchain structure
+ * Represents the blockchain structure for a Bitcoin simulation.
+ * <p>
+ * The {@linkplain Blockchain} maintains the main chain of blocks, 
+ * a list of orphan blocks, and tips (latest blocks in each chain).
+ * Blocks can be added either as validated new blocks or received via propagation.
+ * Transactions are stored within {@linkplain Block} objects.
+ * </p>
+ * 
+ * <p>
+ * This class implements {@linkplain IStructure} to integrate with the simulation engine.
+ * </p>
+ * 
+ * TODO: Consider optimizing some searches (e.g., block by ID) for large blockchains.
  * 
  * @author Sotirios Liaskos for the Conceptual Modeling Group @ York University
- * 
+ * @see Block
+ * @see BitcoinNode
  */
 public class Blockchain implements IStructure {
 
-	/**
-	 * A list of blocks. Each {@linkplain Block}'s getParent() points to a parent {@linkplain Block}
-	 */
+	 /** The main blockchain as a list of {@linkplain Block}s. Each block's getParent() points to its parent, through reference to the corresponding {@linkplain Block} object. */
 	ArrayList<Block> blockchain = new ArrayList<Block>();
 	
-	/**
-	 * List of orphan {@linkplain Block}s. {@linkplain Block}s end up here if they refer to a parent that does not exist in the blockchain (e.g., has delayed arrival). At key events the orphan {@linkplain Block}s are revisited. 
+	/** List of orphan {@linkplain Block}s. {@linkplain Block}s end up here if they refer to a parent that does not exist in the blockchain (e.g., has delayed arrival). At key events the orphan {@linkplain Block}s are revisited. 
 	 */
 	ArrayList<Block> orphans = new ArrayList<Block>();
 
-	/**
-	 * A list of tips.
-	 */
+    /** List of tips, i.e., blocks that are at the end of each chain, and no other block points them as parents. */
 	ArrayList<Block> tips = new ArrayList<Block>();
 	
 	
 	
-	
-	/**
-	 * @deprecated
-	 */
-	public void _______BlockArrival() {}
+
+	//----------------------------------------------------------------
+	// ADDING BLOCKS
+	//----------------------------------------------------------------
 	
 	
 	/**
@@ -50,7 +57,7 @@ public class Blockchain implements IStructure {
 	 * 
 	 * If the {@linkplain Block} has a parent (e.g., it has arrived from another node) the parent must be found (by ID) and the {@linkplain Block} must be appended on that parent. If parent is not found it is placed in orphans. 
 	 * 
-	 * If the {@linkplain Block} does not have parent (e.g., {@linkplain Block block} was just validated by the {@linkplain BitcoinNode Node} itself) it must be appended on the tallest non-overlapping path to genesis. In reality, the node will in every hash be aware of the parent of the node its it trying to validate and update it based on new events. 
+	 * If the {@linkplain Block} does not have parent (e.g., {@linkplain Block block} was just validated by the {@linkplain BitcoinNode Node} itself) it must be appended on the tallest non-overlapping path to genesis. In reality, the node will in every hash be aware of the parent of the node it is trying to validate and update it based on new events. 
 	 *  
 	 * @param b A validated block to be added to the chain. 
 	 */
@@ -76,30 +83,25 @@ public class Blockchain implements IStructure {
 	 * @param b The {@linkplain Block} to be added to the blockchain.
 	 */
 	private void placeBlockInChain(Block b) {
-		//Find the parent. It is important that this happens by ID. 
-		//Initially the parent may point to a block residing in a different node!
+		// Find the parent. 
+		// Search by ID because the object may reside in another node.
 		Block parent = (Block) findParentOfbyID(b);
-		//TODO for the condition add (&& b.parent not equal null) -> means I could not find parent of this
 		if (parent == null) {
+			//Did not find parent, add to orphans
 			addToOrphans(b);
 		} else {
-			//Debug.p("Propagated Block " + b.getID());
+			
+			//Found the parent, check now for overlaps
 			if (!hasChainOverlap(b,parent)) {
-				//Debug.p("----> * Block OK, adding on " + parent.getID());
 
-				// Just add the block
+				//No overlaps found good to append.
+
 				b.setHeight(parent.getHeight() + 1);
 				blockchain.add(b);
 
 				//Replace parent with block
 				tips.remove(parent);
 				tips.add(b);
-				
-				//Report event.
-				//BitcoinReporter.reportBlockEvent(b.getContext().simTime, b.getContext().sysTime, b.getContext().nodeID,
-				//		b.getID(),b.getParent().getID(),b.getHeight(),b.printIDs(";"),
-				//		"Appended On Chain (w/ parent)", b.getContext().difficulty,b.getContext().cycles);
-
 				
 				BitcoinReporter.reportBlockEvent(
 						Simulation.currentSimulationID,
@@ -113,22 +115,9 @@ public class Blockchain implements IStructure {
 						"Appended On Chain (w/ parent)", 
 	                    b.getValidationDifficulty(),
 	                    b.getValidationCycles());
-				
 				processOrphans();
 			} else {
-				Debug.p("discarding overlapping block");
-//				BitcoinReporter.reportBlockEvent(
-//						b.getContext().simTime, 
-//						b.getContext().sysTime, 
-//						b.getContext().nodeID,
-//						b.getID(),
-//						b.getParent().getID(),
-//						b.getHeight(),
-//						b.printIDs(";"),
-//						"Discarded due to overlap with parent's chain", 
-//						b.getContext().difficulty,
-//						b.getContext().cycles);
-
+				//Overlap found, discard block
 				BitcoinReporter.reportBlockEvent(
 						Simulation.currentSimulationID,
 	            		Simulation.currTime,
@@ -141,16 +130,13 @@ public class Blockchain implements IStructure {
 						"Discarded due to overlap with parent's chain", 
 	                    b.getValidationDifficulty(),
 	                    b.getValidationCycles());
-
-				
+			
 			}
 		}
 	}
 
 
 
-
-	//For new parentless blocks. You need to find the tip
 	/**
 	 * Pushes a newly validated {@linkplain Block block} without parents 
 	 * (e.g., just validated by the node) to blockchain.
@@ -173,18 +159,14 @@ public class Blockchain implements IStructure {
 		if (!blockchain.isEmpty()) {
 
 			Block par = this.getNonOverlappingTip(b);
-			//Block par = this.getLongestTip();
+
 			if (par != null) {
-				//Prepare and block to structure
+				//Prepare and append to structure
 				b.setParent(par);
 				b.setHeight(par.getHeight() + 1);
 				blockchain.add(b);
 				tips.add(b);
 				tips.remove(b.getParent());
-				
-//				BitcoinReporter.reportBlockEvent(b.getContext().simTime, b.getContext().sysTime, b.getContext().nodeID,
-//						b.getID(),((b.getParent() == null) ? -1 : b.getParent().getID()),b.getHeight(),b.printIDs(";"),
-//						"Appended On Chain (parentless)", b.getContext().difficulty,b.getContext().cycles);
 
 				BitcoinReporter.reportBlockEvent(
 						Simulation.currentSimulationID,
@@ -203,9 +185,6 @@ public class Blockchain implements IStructure {
 
 			} else {
 				//Do nothing, block should be discarded.
-//				BitcoinReporter.reportBlockEvent(b.getContext().simTime, b.getContext().sysTime, b.getContext().nodeID,
-//						b.getID(),((b.getParent() == null) ? -1 : b.getParent().getID()),b.getHeight(),b.printIDs(";"),
-//						"Discarding due to chain overlap", b.getContext().difficulty,b.getContext().cycles);
 				BitcoinReporter.reportBlockEvent(
 						Simulation.currentSimulationID,
 	            		Simulation.currTime,
@@ -230,54 +209,13 @@ public class Blockchain implements IStructure {
 	}
 
 
-//	private void pushBlockToChain2(Block b) {
-//
-//		//Nonempty blockchain - find the tallest non-conflicting tip
-//		if (!blockchain.isEmpty()) {
-//
-//			Block par = this.getLongestTip();
-//			if (par != null) {
-//				//Prepare and block to structure
-//				b.setParent(par);
-//				b.setHeight(par.getHeight() + 1);
-//				blockchain.add(b);
-//				tips.add(b);
-//				tips.remove(b.getParent());
-//				BitcoinReporter.reportBlockEvent(b.getContext().simTime, b.getContext().sysTime, b.getContext().nodeID,
-//						b.getID(),((b.getParent() == null) ? -1 : b.getParent().getID()),b.getHeight(),b.printIDs(";"),
-//						"Appended On Chain (parentless)", b.getContext().difficulty,b.getContext().cycles);
-//
-//				processOrphans();
-//
-//			} else {
-//				//Do nothing, block should be discarded.
-//				BitcoinReporter.reportBlockEvent(b.getContext().simTime, b.getContext().sysTime, b.getContext().nodeID,
-//						b.getID(),((b.getParent() == null) ? -1 : b.getParent().getID()),b.getHeight(),b.printIDs(";"),
-//						"Discarding due to chain overlap", b.getContext().difficulty,b.getContext().cycles);
-//			}
-//		} else {
-//			//It is a genesis block
-//			b.setParent(null); // it was already but for clarity
-//			b.setHeight(1);
-//			blockchain.add(b);
-//			tips.add(b);
-//
-//			processOrphans();
-//		}
-//	}
-
-
-
-
-
-	/**
-	 * @deprecated
-	 */
-	public void _______OrphansManagement() {}
+	//----------------------------------------------------------------
+	// ORPHAN MANAGEMENT
+	//----------------------------------------------------------------
 	
-	/**
-	 * Recursive function: for each orphan in the orphans list try to place in the chain using placeBlockInChain. Repeat this loop (through a recursive call) until no orphan in the list can be placed in the chain.  
-	 */
+    /**
+     * Attempts to place all orphan blocks into the blockchain recursively.
+     */
 	private void processOrphans() {
 		ArrayList<Block> orphansCpy = new ArrayList<Block>(orphans);
 		int initNumOrphans = orphans.size();
@@ -286,7 +224,7 @@ public class Blockchain implements IStructure {
 			placeBlockInChain(b);
 		}
 		if ( (orphans.size() < initNumOrphans) && (orphans.size() > 0) ){
-			// do it again if the loop above actually affected the blockchain, and there are still orphans in the list.
+			// do it again if the loop above actually affected the blockchain and there are still orphans in the list.
 			processOrphans();
 		}
 	}
@@ -294,14 +232,11 @@ public class Blockchain implements IStructure {
 	
 
 	/**
-	 * Adds a block to the orphans list. 
+	 * Adds a {@linkplain Block} to the orphans list. 
 	 * @param b The block to be added.
 	 */
 	private void addToOrphans(Block b) {
 		orphans.add(b);
-//		BitcoinReporter.reportBlockEvent(b.getContext().simTime, b.getContext().sysTime, b.getContext().nodeID,
-//				b.getID(),b.getParent().getID(),-1,b.printIDs(";"),
-//				"Added to Orphans", b.getContext().difficulty,b.getContext().cycles);
 
 		BitcoinReporter.reportBlockEvent(
 				Simulation.currentSimulationID,
@@ -317,47 +252,31 @@ public class Blockchain implements IStructure {
 	}
 	
 	
-	/**
-	 * Gathers all transactions that reside in orphan Blocks
-	 * 
-	 * @return A transaction group that contains all transactions contained in the list of orphans.
-	 */
-	public TransactionGroup getAllOrphanTransactions() {
-		TransactionGroup allOrphTxs = new TransactionGroup();
-		for (Block orphan : orphans) {
-            for (Transaction ts: orphan.getTransactions()) {
-            	allOrphTxs.addTransaction(ts);
-            }
-        }
-		return (allOrphTxs);
-	}
+
 	
 	
-	
-	/**
-	 * @deprecated
-	 */
-	public void _______Overlaps() {}
+	//----------------------------------------------------------------	
+	// OVERLAP MANAGEMENT
+	//----------------------------------------------------------------
 	
 	
-	/**
-	 * Checks if any of the transactions in Block b exist in any of the transactions that are contained in blocks starting from tip and to the genesis block. 
-	 * @param b The block to check the overlap for.
-	 * @param tip The tip of the chain to check the overlap against.
-	 * @return <tt>true</tt> if overlap exists false otherwise
-	 */
+    /**
+     * Checks whether a block overlaps with the transactions in the chain from a given tip to genesis.
+     * 
+     * @param b The {@linkplain Block} to check for overlaps.
+     * @param tip The tip of the chain to check against - also a {@linkplain Block}.
+     * @return {@code true} if an overlap exists, {@code false} otherwise.
+     */
 	public boolean hasChainOverlap(Block b, Block tip) {
 		Block pointer = tip;
 		boolean overlapExists = false;
 		
 		//Do the below while you have not reached and have not found an overlap 
 		while (pointer!=null && !overlapExists) {
-			//Debug.p("----> Checking node " + pointer.getID() + " with transactions " + pointer.printIDs(","));
 			
 			//Flip overlapExists if overlap is found.
 			overlapExists = (overlapExists || pointer.overlapsWith(b)); 
 						
-			//if (overlapExists) Debug.p("----> Found overlap, abandoning branch."); 
 			// move towards the root
 			pointer = (Block) pointer.getParent();
 		}
@@ -368,8 +287,8 @@ public class Blockchain implements IStructure {
 
 	/**
 	 * Given a Block b find the tallest tip whose chain to the genesis does not contain transactions whose ID matches one of the IDs in the transactions in b. Searches form tallest to shortest. Return null if such tip is not found.
-	 * @param b The block in question. 
-	 * @return The tallest tip whose chain to genesis does not overlap with b. Returns <tt>null</tt> if such tip were not found.
+	 * @param b The {@linkplain Block} to be checked against the tips.
+	 * @return The tallest tip whose chain to genesis does not overlap with b. Returns {@code null} if no such tip is found.
 	 */
 	public Block getNonOverlappingTip(Block b) {
 		Block t,winningTip = null;
@@ -377,47 +296,24 @@ public class Blockchain implements IStructure {
 
 		// Sort tips by height
 		Collections.sort(this.tips, new BlockHeightComparator());
-		//Debug.p("Placing Block: " + b.getID() + " with transactions " + b.printIDs(","));
 
 		// Loop tips from tallest to shortest
 		for (int i=0; (i < this.tips.size()) && !found;i++) {
 			t = this.tips.get(i);
-			//Debug.p("--> Trying tip " + t.getID() + " with height " + t.getHeight() + " and transactions " + t.printIDs(","));
 			//Check for overlaps
 			if (!hasChainOverlap(b,t)) {
-				//Debug.p("--> " + t.getID() + " it is!");
 				found = true;
 				winningTip = t;
-			} else {
-				//Debug.p("--> " + t.getID() + " does not work.");
 			}
 		}
 		return (winningTip);
 	}
 	
 	
-	/**
-	 * @deprecated
-	 */
-	public void _______Queries() {}
+	//----------------------------------------------------------------
+	// QUERYING
+	//----------------------------------------------------------------
 	
-	
-	/**
-	 * Finds the parent of a {@linkplain Block} b.
-	 * @param b The {@linkplain Block} whose parent is to be found. 
-	 * @return A pointer to an object implementing ITxContainer (e.g., a {@linkplain Block})
-	 */
-//	private ITxContainer findParentOf(Block b) {
-//		Block parent = (Block) b.getParent();
-//		Block found = null;
-//		for (Block l : blockchain) {
-//			if (l == parent) {
-//				found = l;
-//				break;
-//			}
-//		}
-//		return(found);
-//	}
 	
 	/**
 	 * Finds the parent of a {@linkplain Block} b by ID.
@@ -441,7 +337,7 @@ public class Blockchain implements IStructure {
 	 * Checks if a {@linkplain Transaction} is contained (anywhere) in the blockchain. Likely to be used in the gossip stage.
 	 *
 	 * @param t The {@linkplain Transaction} to be checked.
-	 * @return <tt>true</tt> if it is contained, <tt>false</tt> if it is not.
+	 * @return Return {@code true} if it is contained {@code false} otherwise.
 	 */
 	public boolean contains(Transaction t) {
 		boolean found = false;
@@ -456,7 +352,7 @@ public class Blockchain implements IStructure {
 	/**
 	 * Checks if a {@linkplain Block} is contained in the blockchain. Search by ID.
 	 * @param block Is the {@linkplain Block} to be checked.
-	 * @return Return <tt>true</tt> if it is contained <tt>false</tt> otherwise.
+	 * @return Return {@code true} if it is contained {@code false} otherwise.
 	 */
 	public boolean contains(Block block) {
 		// Start checking from the parent of the block passed
@@ -469,18 +365,13 @@ public class Blockchain implements IStructure {
 		// Traverse the parental structure from the parent of the given block
 		while (current != null) {
 			counter++;
-			boolean found1 = false, found2 = false;
+			boolean found = false;
 
 			// Check if any block in the blockchain overlaps with the current block
-			// TODO: this must be fixed
-			if (block.overlapsWith(current)) found1 = true;
-			if (block.overlapsWithByObj(current)) found2 = true;
+			if (block.overlapsWith(current)) found = true;
 
-				// Assert to ensure consistency between overlapsWith and overlapsWithbyObj methods
-			assert(!(found1 ^ found2));
-
-			if (found1 || found2) {
-				//TODO: this is never happening. Is it normal?
+			if (found) {
+				// This not supposed to ever be happening. 
 				Reporter.addErrorEntry("Block " + block.getID() + " is contained in the blockchain at height " + counter);
 				return true; // Found the block in the parental structure
 				}
@@ -492,12 +383,100 @@ public class Blockchain implements IStructure {
 		return false; // Block not found in the parental structure
 	}
 
+ 	/**
+	 * Returns the height of the blockchain, i.e., the height of the tallest block.
+	 * @return The height of the tallest block in the blockchain. If the blockchain is empty, returns 0.
+	 */
+	public int getBlockchainHeight() {
+		int maxHeight = 0;
+		for (Block block : blockchain) {
+			if (block.getHeight() > maxHeight) {
+				maxHeight = block.getHeight();
+			}
+		}
+		return maxHeight;
+	}
 
 	/**
-	 * @deprecated
+	 * Returns the tip with the longest height.
+	 * @return The {@code Block} with the longest height from the tips list. If the list is empty, returns null.
 	 */
-	public void ______Printing(){}
+	public Block getLongestTip() {
+		if (tips.isEmpty()) {
+			return null;
+		}
+
+		Block longestTip = tips.get(0);
+		for (Block tip : tips) {
+			if (tip.getHeight() > longestTip.getHeight()) {
+				longestTip = tip;
+			}
+		}
+		return longestTip;
+	}
+	
+	/**
+	 * Finds a {@linkplain Block} in the blockchain by its ID.
+	 * @param id The ID of the {@linkplain Block} to be found.
+	 * @return The {@linkplain Block} with the specified ID, or {@code null} if not found.
+	 */
+	public Block getBlockByID(int id) {
+		for (Block block : blockchain) {
+			if (block.getID() == id) {
+				return block;
+			}
+		}
+		return null;
+	}
+	
+	
+	/**
+	 * Checks if a transaction is believed by the node, i.e., if it exists in the longest chain.
+	 * This is done by traversing from the longest tip back to genesis
+	 * and checking if any block contains the transaction ID.
+	 * 
+	 * @param txID The ID of the transaction to check.
+	 * @return {@code true} if the transaction is found in the longest chain, {@code false} otherwise.
+	 */
+	@Override
+	public float transactionBelief(long txID) {
+		Block longestTip = getLongestTip();
 		
+		if (longestTip == null) {
+			return 0;
+		}
+		
+		boolean found = false;
+		Block current = longestTip;
+		while (current != null) {
+			found = (found || current.contains(txID));
+			if (found) break;
+			current = (Block) current.getParent();
+		}
+		return found ? 1.0f : 0.0f;
+	}
+	
+	/**
+	 * Checks if a transaction is fully believed by the node, i.e., if it exists in the longest chain.
+	 * This is done by traversing from the longest tip back to genesis
+	 * and checking if any block contains the transaction ID.
+	 * 
+	 * Implemented as a convenience method using {@linkplain #transactionBelief(long)}.
+	 * 
+	 * @param txID The ID of the transaction to check.
+	 * @return {@code true} if the transaction is found in the longest chain, {@code false} otherwise.
+	 * @see #transactionBelief(long)
+	 */
+	public boolean transactionBelieved(long txID) {
+		float epsilon = 1e-6f;
+		return ( Math.abs(transactionBelief(txID) - 1.0f) < epsilon ); 
+	}
+	
+	
+	//	----------------------------------------------------------------
+	// PRINTING
+	//----------------------------------------------------------------
+	
 	
 	/**
 	 * Print structure for direct presentation. Returns comma separated entries of the format: BlockID,ParentID,BlockHeight,Transactions
@@ -522,7 +501,7 @@ public class Blockchain implements IStructure {
 
 	
 	/**
-	 * Like <tt>printStructure()</tt> but with additional information including the ID of the node it exists. 
+	 * Like {@linkplain #printStructure()} but with additional information including the ID of the node it exists. 
 	 * @param nodeID Node ID to be included in the report.
 	 * @return An array of comma separated entries with format: SimTime, SysTime, (both at the time of the report) NodeID, BlockID, ParentID, Height, Content (list of transactions), Place (blockchain).
 	 */
@@ -560,7 +539,7 @@ public class Blockchain implements IStructure {
 	}
 	
 	/**
-	 * Like {@link Blockchain#printOrphans()} with additional information.
+	 * Like {@linkplain Blockchain#printOrphans()} with additional information.
 	 * @param nodeID The node ID to be reported.
 	 * @return  An array of comma separated entries, one orphan per entry, in the format: SimTime, SysTime, (both at the time of the report) NodeID, BlockID, ParentID, Height, Content (list of transactions), Place (blockchain).
 	 */
@@ -593,55 +572,11 @@ public class Blockchain implements IStructure {
     	return (s);
     }
 
-	public int getBlockchainHeight() {
-		int maxHeight = 0;
-		for (Block block : blockchain) {
-			if (block.getHeight() > maxHeight) {
-				maxHeight = block.getHeight();
-			}
-		}
-		return maxHeight;
-	}
 
-	/**
-	 * Returns the tip with the longest height.
-	 * @return The Block with the longest height from the tips list. If the list is empty, returns null.
+	/**	
+	 * Prints the longest chain from the tip to genesis.
+	 * @return A human-readable string representing the longest chain.
 	 */
-	public Block getLongestTip() {
-		if (tips.isEmpty()) {
-			return null;
-		}
-		//for (Block tip : tips)
-		//	System.out.println("Tip " + tip.getID() +" size: "+tip.getHeight());
-
-		Block longestTip = tips.get(0);
-		for (Block tip : tips) {
-			if (tip.getHeight() > longestTip.getHeight()) {
-				longestTip = tip;
-			}
-		}
-		return longestTip;
-	}
-	
-	//TODO: Test this
-	@Override
-	public boolean transactionInStructure(long txID) {
-		Block longestTip = getLongestTip();
-		
-		if (longestTip == null) {
-			return false;
-		}
-		
-		boolean found = false;
-		Block current = longestTip;
-		while (current != null) {
-			found = (found || current.contains(txID));
-			if (found) break;
-			current = (Block) current.getParent();
-		}
-		return found;
-	}
-	
 	public String printLongestChain() {
 		StringBuilder result = new StringBuilder();
 		Block longestTip = getLongestTip();
@@ -655,15 +590,6 @@ public class Blockchain implements IStructure {
 			current = (Block) current.getParent();
 		}
 		return result.toString();
-	}
-
-	public Block getBlockByID(int id) {
-		for (Block block : blockchain) {
-			if (block.getID() == id) {
-				return block;
-			}
-		}
-		return null;
 	}
 
 }
