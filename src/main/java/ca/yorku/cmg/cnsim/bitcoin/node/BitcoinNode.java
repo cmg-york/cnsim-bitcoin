@@ -78,6 +78,8 @@ public class BitcoinNode extends Node {
 		behaviorStrategy.event_NodeCompletesValidation(t, time);
 	}
 	
+
+	
 	
 	
  	// Called by the behavior strategy when validation is complete

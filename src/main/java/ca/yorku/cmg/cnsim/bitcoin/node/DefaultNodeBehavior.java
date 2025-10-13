@@ -68,6 +68,7 @@ public abstract class DefaultNodeBehavior implements NodeBehaviorStrategy {
 	
     
     
+
 	@Override
 	public abstract void event_NodeReceivesClientTransaction(Transaction t, long time);
 	
