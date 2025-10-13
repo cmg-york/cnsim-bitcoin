@@ -14,21 +14,20 @@ import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
 import ca.yorku.cmg.cnsim.engine.transaction.TransactionGroup;
 import ca.yorku.cmg.cnsim.engine.transaction.TxValuePerSizeComparator;
 
-/**
- * @author Enterprise Systems Group (ESG) @ York University
- *
- */
+ 
 public class BitcoinNode extends Node {
 	private NodeBehaviorStrategy behaviorStrategy;
+	private TransactionGroup miningPool;
+	private Blockchain blockchain;
 
-	protected TransactionGroup miningPool;
-	public Blockchain blockchain;
+	private Double operatingDifficulty;
+	private long minValueToMine;
+	private long minSizeToMine;
 
-	protected Double operatingDifficulty;
-	protected long minValueToMine;
-	protected long minSizeToMine;
 
-	public void _______________Constructors() {}
+	// -----------------------------------------------
+	// CONSTRUCTORS
+	// -----------------------------------------------
 
 	public BitcoinNode(Simulation sim) {
 		super(sim);
@@ -51,117 +50,16 @@ public class BitcoinNode extends Node {
 
 
 
-	public TransactionGroup getMiningPool() {
-		return miningPool;
+
+
+	//-----------------------------------------------
+	// EVENT HANDLING
+	//-----------------------------------------------
+
+	public void setBehaviorStrategy(NodeBehaviorStrategy strategy) {
+		this.behaviorStrategy = strategy;
 	}
-
-
-	public void setMiningPool(TransactionGroup miningPool) {
-		this.miningPool = miningPool;
-	}
-
-
-	public void setStructure(Blockchain blockchain) {
-		this.blockchain = blockchain;
-	}
-
-
-	public void setOperatingDifficulty(Double operatingDifficulty) {
-		this.operatingDifficulty = operatingDifficulty;
-	}
-
-
-	@Override
-	public IStructure getStructure() {
-		return blockchain;
-	}
-
-
-	public void _______________PoW_and_Mining() {}
-
-	public void setOperatingDifficulty (double dif) {
-		this.operatingDifficulty = dif;
-	}
-
-	public double getOperatingDifficulty () {
-		return (this.operatingDifficulty);
-	}
-
-
-	public long getMinValueToMine() {
-		return minValueToMine;
-	}
-
-
-	public void setMinValueToMine(long minValueToMine) {
-		this.minValueToMine = minValueToMine;
-	}
-
-
-	public long getMinSizeToMine() {
-		return minSizeToMine;
-	}
-
-	public void setMinSizeToMine(long minSizeToMine) {
-		this.minSizeToMine = minSizeToMine;
-	}
-
-
-	protected void considerMining(long time) {
-		if (isWorthMining()) {
-			//Start mining and schedule a new validation event
-			if (!isMining()) {
-				//It is not mining because it has never OR it has but then abandoned.
-				assert((getNextValidationEvent() == null) || ((getNextValidationEvent() != null) ? getNextValidationEvent().ignoreEvt(): true));
-
-				long interval = scheduleValidationEvent(new Block(miningPool.getTransactions()), time);
-				startMining(interval);
-			} else {
-				assert((getNextValidationEvent() != null) && !getNextValidationEvent().ignoreEvt());
-				//All good!
-			}
-		} else {
-			if (!isMining()) {
-				assert((getNextValidationEvent() == null) || getNextValidationEvent().ignoreEvt());
-				//All good otherwise!
-			} else  {
-				// Stop mining, invalidate any future validation event.
-				assert((getNextValidationEvent() != null) && !getNextValidationEvent().ignoreEvt());
-				getNextValidationEvent().ignoreEvt(true);
-				stopMining();
-				assert((getNextValidationEvent() == null) || ((getNextValidationEvent() != null) ? getNextValidationEvent().ignoreEvt(): true));
-			}
-		}
-
-	}
-
-
-	public boolean isWorthMining() {
-		return((miningPool.getValue() > getMinValueToMine()));
-	}
-
-	protected void reconstructMiningPool() {
-		miningPool  = pool.getTopN(Config.getPropertyLong("bitcoin.maxBlockSize"), new TxValuePerSizeComparator());
-		//miningPool.extractGroup(blockchain.getAllOrphanTransactions());
-	}
-
 	
-	protected void transactionReceipt(Transaction t, long time) {
-		addTransactionToPool(t);
-		reconstructMiningPool();
-		considerMining(time);
-	}
-
-
-	@Override
-	public void close(INode n) {
-		BitcoinReporter.reportBlockChainState(
-				//Simulation.currTime, System.currentTimeMillis(), this.getID(),
-				this.blockchain.printStructureReport(this.getID()), 
-				this.blockchain.printOrphansReport(this.getID()));
-	}
-
-
 	@Override
 	public void event_NodeReceivesClientTransaction(Transaction t, long time) {
 		behaviorStrategy.event_NodeReceivesClientTransaction(t, time);
@@ -183,37 +81,21 @@ public class BitcoinNode extends Node {
 		behaviorStrategy.event_NodeCompletesValidation(t, time);
 	}
 
-
-	public double getProspectiveCycles() {
-		return super.prospectiveMiningCycles;
-	}
-
-	public void completeValidation(TransactionGroup miningPool, long time) {
-		super.event_NodeCompletesValidation(miningPool, time);
-		// Any additional logic that needs to be executed after calling the super method
-	}
-
-	public void setBehaviorStrategy(NodeBehaviorStrategy strategy) {
-		this.behaviorStrategy = strategy;
-	}
-
-
-	public NodeBehaviorStrategy getBehaviorStrategy() {
-		return behaviorStrategy;
-	}
-	
-	public Blockchain getBlockchain() {
-		return blockchain;
-	}
-
-	
-
-	
-	//
-	// REPORTING ROUTINES
-	//
 	
 	
+	
+	//-----------------------------------------------
+	// REPORTING BEHAVIORS
+	//-----------------------------------------------
+	
+	
+	@Override
+	public void beliefReport(long[] sample, long time) {
+		if (Reporter.reportsBeliefs() || Reporter.reportsBeliefsShort()) 
+		for (int i = 0; i < sample.length; i++) {
+			Reporter.addBeliefEntry(this.sim.getSimID(), this.getID(), sample[i], blockchain.transactionBelieved(sample[i]), time);	
+		}
+	}
 	
 	@Override
 	public void timeAdvancementReport() {
@@ -226,14 +108,6 @@ public class BitcoinNode extends Node {
 	}
 
 	
-	
-	@Override
-	public void beliefReport(long[] sample, long time) {
-		if (Reporter.reportsBeliefs() || Reporter.reportsBeliefsShort()) 
-		for (int i = 0; i < sample.length; i++) {
-			Reporter.addBeliefEntry(this.sim.getSimID(), this.getID(), sample[i], blockchain.transactionBelieved(sample[i]), time);	
-		}
-	}
 
 	@Override
 	public void nodeStatusReport() {
@@ -246,5 +120,67 @@ public class BitcoinNode extends Node {
 		// TODO Auto-generated method stub
 		
 	}
+	
+	
+	
+	// -----------------------------------------------
+	// GETTERS, SETTERS, OTHER
+	// -----------------------------------------------
+		
+	public TransactionGroup getMiningPool() {
+		return miningPool;
+	}
+
+
+	public void setMiningPool(TransactionGroup miningPool) {
+		this.miningPool = miningPool;
+	}
+
+	public double getOperatingDifficulty () {
+		return (this.operatingDifficulty);
+	}
+
+	public long getMinValueToMine() {
+		return minValueToMine;
+	}
+
+
+	public void setMinValueToMine(long minValueToMine) {
+		this.minValueToMine = minValueToMine;
+	}
+
+
+	public long getMinSizeToMine() {
+		return minSizeToMine;
+	}
+
+	public void setMinSizeToMine(long minSizeToMine) {
+		this.minSizeToMine = minSizeToMine;
+	}
+	
+
+	public void setStructure(Blockchain blockchain) {
+		this.blockchain = blockchain;
+	}
+	
+	@Override
+	public Blockchain getStructure() {
+		return blockchain;
+	}
+
+	//TODO: move this to engine.node.Node
+	public double getProspectiveCycles() {
+		return super.prospectiveMiningCycles;
+	}
+
+	
+	@Override
+	public void close(INode n) {
+		BitcoinReporter.reportBlockChainState(
+				//Simulation.currTime, System.currentTimeMillis(), this.getID(),
+				this.blockchain.printStructureReport(this.getID()), 
+				this.blockchain.printOrphansReport(this.getID()));
+	}
+	
 
 }

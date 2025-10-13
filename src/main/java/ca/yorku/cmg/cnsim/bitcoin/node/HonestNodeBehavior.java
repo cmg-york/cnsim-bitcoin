@@ -6,19 +6,28 @@ import ca.yorku.cmg.cnsim.engine.Simulation;
 import ca.yorku.cmg.cnsim.engine.transaction.ITxContainer;
 import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
 
-public class HonestNodeBehavior implements NodeBehaviorStrategy {
+public class HonestNodeBehavior extends DefaultNodeBehavior {
 
-    private BitcoinNode node; // Reference to the BitcoinNode
-
+	
+	// -----------------------------------------------
+	// CONSTRUCTORS
+	// -----------------------------------------------
+	
     public HonestNodeBehavior(BitcoinNode node) {
         this.node = node;
     }
 
+    
+    // -----------------------------------------------
+    // EVENT HANDLING
+    // -----------------------------------------------
+    
+    
     @Override
     public void event_NodeReceivesClientTransaction(Transaction t, long time) {
         // Process the transaction as per normal rules
         // For instance, add the transaction to the node's pool if it's valid
-        node.transactionReceipt(t,time);
+        transactionReceipt(t,time);
         node.propagateTransaction(t,time);
     }
 
@@ -26,20 +35,15 @@ public class HonestNodeBehavior implements NodeBehaviorStrategy {
     public void event_NodeReceivesPropagatedTransaction(Transaction t, long time) {
         // Handle reception of propagated transactions
         // Add to the pool if not already present and it's valid
-        if (!node.getPool().contains(t) && !node.blockchain.contains(t)) {
-            node.transactionReceipt(t,time);
+        if (!node.getPool().contains(t) && !node.getStructure().contains(t)) {
+            transactionReceipt(t,time);
         }
     }
 
     @Override
     public void event_NodeReceivesPropagatedContainer(ITxContainer t) {
         Block b = (Block) t;
-        
-        //updateBlockContext(b);
-        // Report a block event
-
-        //reportBlockEvent(b, b.getContext().blockEvt);
-
+    
         b.setCurrentNodeID(node.getID());
         b.setLastBlockEvent("Node Receives Propagated Block");
         b.setValidationCycles(-1.0);
@@ -57,7 +61,7 @@ public class HonestNodeBehavior implements NodeBehaviorStrategy {
                 b.getValidationDifficulty(),
                 b.getValidationCycles());
                 
-        if (!node.blockchain.contains(b)){
+        if (!node.getStructure().contains(b)){
             handleNewBlockReception(b);
         } else {
             //Discard the block and report the event.
@@ -84,9 +88,14 @@ public class HonestNodeBehavior implements NodeBehaviorStrategy {
 
     @Override
     public void event_NodeCompletesValidation(ITxContainer t, long time) {
+    	System.err.println("I am in HERE!");
+    	
+    	System.err.println(t.getClass().getSimpleName());
         Block b = (Block) t;
+        System.err.println("I am in HERE!!");
+        
         //Add validation information to the block.
-        b.validateBlock(node.miningPool,
+        b.validateBlock(node.getMiningPool(),
                 Simulation.currTime,
                 System.currentTimeMillis() - Simulation.sysStartTime,
                 node.getID(),
@@ -95,11 +104,8 @@ public class HonestNodeBehavior implements NodeBehaviorStrategy {
                 node.getProspectiveCycles());
 
 
-        node.completeValidation(node.miningPool, time);
+        completeValidation(node.getMiningPool(), time);
 
-
-        //Report validation
-        //reportBlockEvent(b, b.getContext().blockEvt);
 
         //Report the validation event
         BitcoinReporter.reportBlockEvent(
@@ -115,11 +121,11 @@ public class HonestNodeBehavior implements NodeBehaviorStrategy {
                 b.getValidationCycles());
         
         
-        b.setParent(node.blockchain.getLongestTip());
-        if (!node.blockchain.contains(b)) {
+        b.setParent(node.getStructure().getLongestTip());
+        if (!node.getStructure().contains(b)) {
             b.setParent(null);
             //Add block to blockchain
-            node.blockchain.addToStructure(b);
+            node.getStructure().addToStructure(b);
             
             //Propagate a clone of the block to the rest of the network
             try {
@@ -148,26 +154,15 @@ public class HonestNodeBehavior implements NodeBehaviorStrategy {
 
 
 
-//    private void updateBlockContext(Block b) {
-//        //TODO: updating of context here seems wrong!
-//        //Update context information for reporting
-//        b.getContext().simTime = Simulation.currTime;
-//        b.getContext().sysTime = System.currentTimeMillis();
-//        b.getContext().nodeID = node.getID();
-//        b.getContext().blockEvt = "Node Receives Propagated Block";
-//        b.getContext().cycles = -1;
-//        b.getContext().difficulty = -1;
-//    }
-
     protected void handleNewBlockReception(Block b) {
         //Add block to blockchain
-        node.blockchain.addToStructure(b);
+        node.getStructure().addToStructure(b);
         //Remove block transactions from pool.
         node.getPool().extractGroup(b);
         // Reconstruct mining pool based on the new information.
-        node.reconstructMiningPool();
+        reconstructMiningPool();
         //Consider starting or stopping mining.
-        node.considerMining(Simulation.currTime);
+        considerMining(Simulation.currTime);
         //node.blockchain.printLongestChain();
     }
 
@@ -187,11 +182,11 @@ public class HonestNodeBehavior implements NodeBehaviorStrategy {
         //Reset the next validation event. TODO: why do you do this?
         node.resetNextValidationEvent();
         //Remove the block's transactions from the mining pool.
-        node.removeFromPool(node.miningPool);
+        node.removeFromPool(node.getMiningPool());
         //Reconstruct mining pool, with whatever other transactions are there.
-        node.reconstructMiningPool();
+        reconstructMiningPool();
         //Consider if it is worth mining.
-        node.considerMining(time);
+        considerMining(time);
     }
 
 

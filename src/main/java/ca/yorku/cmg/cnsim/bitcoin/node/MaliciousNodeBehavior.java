@@ -8,7 +8,7 @@ import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
 
 import java.util.ArrayList;
 
-public class MaliciousNodeBehavior implements NodeBehaviorStrategy {
+public class MaliciousNodeBehavior extends DefaultNodeBehavior {
     //TODO: Make these parameterizable
 	//private static final int MIN_CHAIN_LENGTH = 6;
 	private static final int MIN_CHAIN_LENGTH = 2;
@@ -94,7 +94,7 @@ public class MaliciousNodeBehavior implements NodeBehaviorStrategy {
         //TODO: why is this below a t and not a b?
         if (!isAttackInProgress && t.contains(targetTxID)) {
             lastBlock = (Block) b.getParent();
-            if (!node.blockchain.contains(b)) {
+            if (!node.getStructure().contains(b)) {
                 //reportBlockEvent(b, b.getContext().blockEvt);
                 handleNewBlockReceptionInAttack(b);
                 startAttack(b);
@@ -114,7 +114,7 @@ public class MaliciousNodeBehavior implements NodeBehaviorStrategy {
             }
         }
         else if (isAttackInProgress) { //attack is in progress or block does not contain target
-            if (!node.blockchain.contains(b)) {
+            if (!node.getStructure().contains(b)) {
                 //reportBlockEvent(b, b.getContext().blockEvt);
                 handleNewBlockReceptionInAttack(b);
             } else {
@@ -135,7 +135,7 @@ public class MaliciousNodeBehavior implements NodeBehaviorStrategy {
             checkAndRevealHiddenChain(b);
         }
         else { //attack not in progress
-            if (!node.blockchain.contains(b)) {
+            if (!node.getStructure().contains(b)) {
                 //reportBlockEvent(b, b.getContext().blockEvt);
                 honestBehavior.handleNewBlockReception(b);
             } else {
@@ -162,7 +162,7 @@ public class MaliciousNodeBehavior implements NodeBehaviorStrategy {
     public void event_NodeCompletesValidation(ITxContainer t, long time) {
         if (isAttackInProgress) {
             Block newBlock = (Block) t;
-            newBlock.validateBlock(node.miningPool,
+            newBlock.validateBlock(node.getMiningPool(),
             		Simulation.currTime, 
             		System.currentTimeMillis()- Simulation.sysStartTime, 
             		node.getID(), 
@@ -170,7 +170,7 @@ public class MaliciousNodeBehavior implements NodeBehaviorStrategy {
             		node.getOperatingDifficulty(), 
             		node.getProspectiveCycles());
             
-            node.completeValidation(node.miningPool, time);
+            completeValidation(node.getMiningPool(), time);
 
             BitcoinReporter.reportBlockEvent(
 					Simulation.currentSimulationID,
@@ -185,7 +185,7 @@ public class MaliciousNodeBehavior implements NodeBehaviorStrategy {
                     newBlock.getValidationCycles());
             
             
-            if (!node.blockchain.contains(newBlock)) {
+            if (!node.getStructure().contains(newBlock)) {
                 //reportBlockEvent(newBlock, newBlock.getContext().blockEvt);
                 BitcoinReporter.reportBlockEvent(
 						Simulation.currentSimulationID,
@@ -219,7 +219,7 @@ public class MaliciousNodeBehavior implements NodeBehaviorStrategy {
             checkAndRevealHiddenChain(newBlock);
         } else { //Attack not in progress
             Block b = (Block) t;
-            b.validateBlock(node.miningPool,
+            b.validateBlock(node.getMiningPool(),
             		Simulation.currTime, 
             		System.currentTimeMillis() - Simulation.sysStartTime, 
             		node.getID(), 
@@ -227,12 +227,12 @@ public class MaliciousNodeBehavior implements NodeBehaviorStrategy {
             		node.getOperatingDifficulty(), 
             		node.getProspectiveCycles());
             //node.completeValidation(node.miningPool, time);
-            node.completeValidation(node.miningPool, time);
+            completeValidation(node.getMiningPool(), time);
 
 
             
             if(b.contains(targetTxID)){
-                if (!node.blockchain.contains(b)) {
+                if (!node.getStructure().contains(b)) {
                     //Report validation
                     //reportBlockEvent(b, b.getContext().blockEvt);
                     BitcoinReporter.reportBlockEvent(
@@ -248,14 +248,14 @@ public class MaliciousNodeBehavior implements NodeBehaviorStrategy {
                             b.getValidationCycles());
                     
                     startAttack(b);
-                    node.blockchain.addToStructure(b);
+                    node.getStructure().addToStructure(b);
                     node.propagateContainer(b, time);
                     lastBlock = (Block) b.getParent();
                     node.stopMining();
                     node.resetNextValidationEvent();
-                    node.reconstructMiningPool();
-                    node.miningPool.removeTransaction(targetTxID);
-                    node.considerMining(Simulation.currTime);
+                    reconstructMiningPool();
+                    node.getMiningPool().removeTransaction(targetTxID);
+                    considerMining(Simulation.currTime);
                 } else {
                     BitcoinReporter.reportBlockEvent(
     						Simulation.currentSimulationID,
@@ -273,12 +273,12 @@ public class MaliciousNodeBehavior implements NodeBehaviorStrategy {
                 }
                 node.stopMining();
                 node.resetNextValidationEvent();
-                node.reconstructMiningPool();
-                node.miningPool.removeTransaction(targetTxID);
-                node.considerMining(Simulation.currTime);
+                reconstructMiningPool();
+                node.getMiningPool().removeTransaction(targetTxID);
+                considerMining(Simulation.currTime);
             } else {
-                b.setParent(node.blockchain.getLongestTip());
-                if (!node.blockchain.contains(b)){
+                b.setParent(node.getStructure().getLongestTip());
+                if (!node.getStructure().contains(b)){
                     //reportBlockEvent(b, b.getContext().blockEvt);
                     BitcoinReporter.reportBlockEvent(
     						Simulation.currentSimulationID,
@@ -293,7 +293,7 @@ public class MaliciousNodeBehavior implements NodeBehaviorStrategy {
                             b.getValidationCycles());
                 	
                     b.setParent(null);
-                    node.blockchain.addToStructure(b);
+                    node.getStructure().addToStructure(b);
                     try {
                     	//Propagate a clone of the block to the rest of the network
 						node.propagateContainer((ITxContainer) b.clone(), time);
@@ -324,7 +324,7 @@ public class MaliciousNodeBehavior implements NodeBehaviorStrategy {
         for (int i = hiddenChain.size()-1; i >= 0; i--) {
             Block b = hiddenChain.get(i);
             b.setParent(i==0 ? lastBlock : hiddenChain.get(i-1));
-            node.blockchain.addToStructure(b);
+            node.getStructure().addToStructure(b);
             node.propagateContainer(b, Simulation.currTime);
         }
         isAttackInProgress = false;
@@ -368,26 +368,26 @@ public class MaliciousNodeBehavior implements NodeBehaviorStrategy {
     private void manageMiningPostValidation() {
         node.stopMining();
         node.resetNextValidationEvent();
-        node.removeFromPool(node.miningPool);
-        node.reconstructMiningPool();
-        node.miningPool.removeTransaction(targetTxID);
-        node.considerMining(Simulation.currTime);
+        node.removeFromPool(node.getMiningPool());
+        reconstructMiningPool();
+        node.getMiningPool().removeTransaction(targetTxID);
+        considerMining(Simulation.currTime);
     }
 
     private void calculateBlockchainSizeAtAttackStart() {
-        if (node.blockchain.getBlockchainHeight() == 0) {
+        if (node.getStructure().getBlockchainHeight() == 0) {
             blockchainSizeAtAttackStart = 0;
             return;
         }
-        Block tip = node.blockchain.getLongestTip();
+        Block tip = node.getStructure().getLongestTip();
         blockchainSizeAtAttackStart = tip.contains(targetTxID) ? tip.getHeight() - 1 : tip.getHeight();
     }
 
     private void handleNewBlockReceptionInAttack(Block b) {
-        node.blockchain.addToStructure(b);
-        node.reconstructMiningPool();
-        node.miningPool.removeTransaction(targetTxID);
-        node.considerMining(Simulation.currTime);
+        node.getStructure().addToStructure(b);
+        reconstructMiningPool();
+        node.getMiningPool().removeTransaction(targetTxID);
+        considerMining(Simulation.currTime);
     }
 
     private boolean shouldRevealHiddenChain() {
@@ -396,7 +396,7 @@ public class MaliciousNodeBehavior implements NodeBehaviorStrategy {
     }
 
     private void checkAndRevealHiddenChain(Block b) {
-        publicChainGrowthSinceAttack = node.blockchain.getLongestTip().getHeight() - blockchainSizeAtAttackStart;
+        publicChainGrowthSinceAttack = node.getStructure().getLongestTip().getHeight() - blockchainSizeAtAttackStart;
         if (shouldRevealHiddenChain()) {
             BitcoinReporter.reportBlockEvent(
 					Simulation.currentSimulationID,
