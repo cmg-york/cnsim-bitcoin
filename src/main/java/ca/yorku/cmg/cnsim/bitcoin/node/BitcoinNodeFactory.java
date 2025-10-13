@@ -18,7 +18,7 @@ public class BitcoinNodeFactory extends AbstractNodeFactory {
 	NodeSet refNs;
 
 	/**
-	 * Create a new factory of a specific type (e.g., Honest, Malicious, etc.) based on the sampler embedded in <tt>Simulator sim</tt>.
+	 * Create a new factory of a specific type (e.g., Honest, Malicious, etc.) based on the sampler embedded in the Simulator object.
 	 *
 	 * @param defaultNodeType Is one of a list of strings identifying node type. Currently "Honest" is implemented.
 	 * @param sim The simulator to which the node is attached, and from which sampling services are drawn.

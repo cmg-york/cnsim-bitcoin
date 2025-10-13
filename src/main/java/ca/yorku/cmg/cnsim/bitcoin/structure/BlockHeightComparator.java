@@ -4,7 +4,7 @@ import java.util.Comparator;
 
 
 /**
- * Comparator for {@linkplain ca.yorku.cmg.cnsim.bitcoin.Block} objects that orders them
+ * Comparator for {@linkplain Block} objects that orders them
  * based on their block height, with ties broken by block ID.
  * <p>
  * Higher blocks (larger height) are considered "less" to achieve descending order.
@@ -12,14 +12,14 @@ import java.util.Comparator;
  * This comparator is suitable for sorting a list of blocks from the most recent to the earliest.
  * 
  * @see java.util.Comparator
- * @see ca.yorku.cmg.cnsim.bitcoin.Block
+ * @see Block
  * @author Sotirios Liaskos for the Conceptual Modeling Group @ York University
  */
 public class BlockHeightComparator implements Comparator<Block> {
 
 	
     /**
-     * Compares two {@linkplain ca.yorku.cmg.cnsim.bitcoin.Block} objects.
+     * Compares two {@linkplain Block} objects.
      *
      * <p>The comparison is primarily by block height in descending order. If the heights
      * are equal, the comparison falls back to the block ID in descending order.</p>

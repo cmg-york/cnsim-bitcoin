@@ -88,14 +88,14 @@ public class Block extends TransactionGroup implements Cloneable {
     // ---------------------------------------------------------
 
     /**
-     * Constructs a new {@linkplain Block} object with the next available ID and an empty {@link Context}.
+     * Constructs a new Block object with the next available ID.
      */
     public Block() {
         groupID = getNextID();
     }
 
     /**
-     * Constructs a new {@linkplain Block} with a unique ID and an initial list of {@linkplain Transaction}s.
+     * Constructs a new Block with a unique ID and an initial list of {@linkplain Transaction}s.
      *
      * @param initial initial list of transactions
      */

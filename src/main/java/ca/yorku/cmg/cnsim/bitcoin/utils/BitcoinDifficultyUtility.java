@@ -116,7 +116,7 @@ public class BitcoinDifficultyUtility {
 	 * 
 	 * @param bits The bitcoin metric representing the truncated current target.
 	 * @return The equivalent difficulty for this current target.
-	 * @throws The hexstring should be 8 hex digits, and additionally, the 24th bit in 
+	 * @throws IllegalArgumentException The hexstring should be 8 hex digits, and  
 	 * the packed target is a sign bit, which cannot be negative.
 	 */
 	public static BigDecimal packedTargetToBTCDifficulty(String bits) throws IllegalArgumentException {

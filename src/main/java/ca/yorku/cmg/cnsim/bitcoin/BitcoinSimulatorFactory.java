@@ -23,14 +23,14 @@ import ca.yorku.cmg.cnsim.engine.node.NodeSet;
  *     <li>{@code net.numOfHonestNodes}</li>
  *     <li>{@code net.numOfMaliciousNodes}</li>
  * </ul>
- * </p>
+ * 
  * <p>
  * Example usage:
  * <pre>
  * {@linkplain BitcoinSimulatorFactory} factory = new {@linkplain BitcoinSimulatorFactory}();
  * {@linkplain Simulation} sim = factory.createSimulation(simID);
  * </pre>
- * </p>
+ *
  * <p>
  * This class overrides {@linkplain SimulatorFactory#createNodeSet(Simulation)}
  * to provide a concrete Bitcoin-specific implementation, while all other
