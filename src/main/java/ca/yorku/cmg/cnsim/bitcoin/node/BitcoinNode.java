@@ -82,6 +82,64 @@ public class BitcoinNode extends Node {
 	}
 
 	
+	// -----------------------------------------------
+	// PoW AND MINING RELATED BEHAVIORS
+	// -----------------------------------------------
+
+	protected void considerMining(long time) {
+		if (isWorthMining()) {
+			//Start mining and schedule a new validation event
+			if (!isMining()) {
+				//TODO: Turn these assertions into exceptions?
+				//It is not mining because it has never OR it has but then abandoned.
+				assert((getNextValidationEvent() == null) || ((getNextValidationEvent() != null) ? getNextValidationEvent().ignoreEvt(): true));
+
+				long interval = scheduleValidationEvent(new Block(getMiningPool().getTransactions()), time);				
+				startMining(interval);
+			} else {
+				
+				assert((getNextValidationEvent() != null) && !getNextValidationEvent().ignoreEvt());
+				
+			}
+		} else {
+			if (!isMining()) {
+				assert((getNextValidationEvent() == null) || getNextValidationEvent().ignoreEvt());
+				//All good otherwise!
+			} else  {
+				// Stop mining, invalidate any future validation event.
+				assert((getNextValidationEvent() != null) && !getNextValidationEvent().ignoreEvt());
+				getNextValidationEvent().ignoreEvt(true);
+				
+				stopMining();
+				
+				assert((getNextValidationEvent() == null) || ((getNextValidationEvent() != null) ? getNextValidationEvent().ignoreEvt(): true));
+			}
+		}
+	}
+	
+	public boolean isWorthMining() {
+		return((getMiningPool().getValue() > getMinValueToMine()));
+	}
+
+	
+	protected void reconstructMiningPool() {
+		setMiningPool(getPool().getTopN(Config.getPropertyLong("bitcoin.maxBlockSize"), 
+				new TxValuePerSizeComparator()));
+	}
+
+	public void completeValidation(TransactionGroup miningPool, long time) {
+		super.event_NodeCompletesValidation(miningPool, time);
+	}
+	
+	protected void transactionReceipt(Transaction t, long time) {
+		addTransactionToPool(t);
+		reconstructMiningPool();
+		considerMining(time);
+	}
+
+	
+	
+	
 	
 	
 	//-----------------------------------------------

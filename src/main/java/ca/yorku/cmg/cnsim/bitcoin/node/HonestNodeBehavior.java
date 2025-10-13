@@ -27,7 +27,7 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
     public void event_NodeReceivesClientTransaction(Transaction t, long time) {
         // Process the transaction as per normal rules
         // For instance, add the transaction to the node's pool if it's valid
-        transactionReceipt(t,time);
+        node.transactionReceipt(t,time);
         node.propagateTransaction(t,time);
     }
 
@@ -36,7 +36,7 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
         // Handle reception of propagated transactions
         // Add to the pool if not already present and it's valid
         if (!node.getPool().contains(t) && !node.getStructure().contains(t)) {
-            transactionReceipt(t,time);
+            node.transactionReceipt(t,time);
         }
     }
 
@@ -88,11 +88,7 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
 
     @Override
     public void event_NodeCompletesValidation(ITxContainer t, long time) {
-    	System.err.println("I am in HERE!");
-    	
-    	System.err.println(t.getClass().getSimpleName());
         Block b = (Block) t;
-        System.err.println("I am in HERE!!");
         
         //Add validation information to the block.
         b.validateBlock(node.getMiningPool(),
@@ -104,7 +100,7 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
                 node.getProspectiveCycles());
 
 
-        completeValidation(node.getMiningPool(), time);
+        node.completeValidation(node.getMiningPool(), time);
 
 
         //Report the validation event
@@ -160,9 +156,9 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
         //Remove block transactions from pool.
         node.getPool().extractGroup(b);
         // Reconstruct mining pool based on the new information.
-        reconstructMiningPool();
+        node.reconstructMiningPool();
         //Consider starting or stopping mining.
-        considerMining(Simulation.currTime);
+        node.considerMining(Simulation.currTime);
         //node.blockchain.printLongestChain();
     }
 
@@ -184,9 +180,9 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
         //Remove the block's transactions from the mining pool.
         node.removeFromPool(node.getMiningPool());
         //Reconstruct mining pool, with whatever other transactions are there.
-        reconstructMiningPool();
+        node.reconstructMiningPool();
         //Consider if it is worth mining.
-        considerMining(time);
+        node.considerMining(time);
     }
 
 

@@ -170,7 +170,7 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
             		node.getOperatingDifficulty(), 
             		node.getProspectiveCycles());
             
-            completeValidation(node.getMiningPool(), time);
+            node.completeValidation(node.getMiningPool(), time);
 
             BitcoinReporter.reportBlockEvent(
 					Simulation.currentSimulationID,
@@ -227,7 +227,7 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
             		node.getOperatingDifficulty(), 
             		node.getProspectiveCycles());
             //node.completeValidation(node.miningPool, time);
-            completeValidation(node.getMiningPool(), time);
+            node.completeValidation(node.getMiningPool(), time);
 
 
             
@@ -253,9 +253,9 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                     lastBlock = (Block) b.getParent();
                     node.stopMining();
                     node.resetNextValidationEvent();
-                    reconstructMiningPool();
+                    node.reconstructMiningPool();
                     node.getMiningPool().removeTransaction(targetTxID);
-                    considerMining(Simulation.currTime);
+                    node.considerMining(Simulation.currTime);
                 } else {
                     BitcoinReporter.reportBlockEvent(
     						Simulation.currentSimulationID,
@@ -273,9 +273,9 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                 }
                 node.stopMining();
                 node.resetNextValidationEvent();
-                reconstructMiningPool();
+                node.reconstructMiningPool();
                 node.getMiningPool().removeTransaction(targetTxID);
-                considerMining(Simulation.currTime);
+                node.considerMining(Simulation.currTime);
             } else {
                 b.setParent(node.getStructure().getLongestTip());
                 if (!node.getStructure().contains(b)){
@@ -369,9 +369,9 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
         node.stopMining();
         node.resetNextValidationEvent();
         node.removeFromPool(node.getMiningPool());
-        reconstructMiningPool();
+        node.reconstructMiningPool();
         node.getMiningPool().removeTransaction(targetTxID);
-        considerMining(Simulation.currTime);
+        node.considerMining(Simulation.currTime);
     }
 
     private void calculateBlockchainSizeAtAttackStart() {
@@ -385,9 +385,9 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
 
     private void handleNewBlockReceptionInAttack(Block b) {
         node.getStructure().addToStructure(b);
-        reconstructMiningPool();
+        node.reconstructMiningPool();
         node.getMiningPool().removeTransaction(targetTxID);
-        considerMining(Simulation.currTime);
+        node.considerMining(Simulation.currTime);
     }
 
     private boolean shouldRevealHiddenChain() {
