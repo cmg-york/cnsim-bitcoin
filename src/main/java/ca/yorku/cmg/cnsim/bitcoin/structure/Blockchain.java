@@ -99,6 +99,9 @@ public class Blockchain implements IStructure {
 				b.setHeight(parent.getHeight() + 1);
 				blockchain.add(b);
 
+				
+				// Tip management
+				
 				//Replace parent with block
 				tips.remove(parent);
 				tips.add(b);
@@ -165,9 +168,12 @@ public class Blockchain implements IStructure {
 				b.setParent(par);
 				b.setHeight(par.getHeight() + 1);
 				blockchain.add(b);
-				tips.add(b);
-				tips.remove(b.getParent());
 
+
+				tips.add(b);
+				tips.remove(((Block) b).getParent());
+				
+				
 				BitcoinReporter.reportBlockEvent(
 						Simulation.currentSimulationID,
 	            		Simulation.currTime,
@@ -202,6 +208,7 @@ public class Blockchain implements IStructure {
 			b.setParent(null); // it was already but for clarity
 			b.setHeight(1);
 			blockchain.add(b);
+	
 			tips.add(b);
 
 			processOrphans();
@@ -568,6 +575,19 @@ public class Blockchain implements IStructure {
     	String s = "{";
     	for(Block t:tips) {
     		s += t.getID() + sep;
+    	}
+    	if (s.length()>1) 
+    		s = s.substring(0, s.length()-1) + "}";
+    	else 
+    		s = s + "}";
+    	return (s);
+    }
+
+    
+    public String printTipsHash(String sep) {
+    	String s = "{";
+    	for(Block t:tips) {
+    		s += t.hashCode() + "(" + t.getID() + ")" + sep;
     	}
     	if (s.length()>1) 
     		s = s.substring(0, s.length()-1) + "}";

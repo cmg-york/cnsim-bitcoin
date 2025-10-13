@@ -1,12 +1,9 @@
 package ca.yorku.cmg.cnsim.bitcoin.node;
 
-import ca.yorku.cmg.cnsim.bitcoin.reporter.BitcoinReporter;
 import ca.yorku.cmg.cnsim.bitcoin.structure.Block;
 import ca.yorku.cmg.cnsim.engine.config.Config;
-import ca.yorku.cmg.cnsim.engine.node.INode;
 import ca.yorku.cmg.cnsim.engine.transaction.ITxContainer;
 import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
-import ca.yorku.cmg.cnsim.engine.transaction.TransactionGroup;
 import ca.yorku.cmg.cnsim.engine.transaction.TxValuePerSizeComparator;
 
 public abstract class DefaultNodeBehavior implements NodeBehaviorStrategy {
@@ -26,10 +23,12 @@ public abstract class DefaultNodeBehavior implements NodeBehaviorStrategy {
 				//It is not mining because it has never OR it has but then abandoned.
 				assert((node.getNextValidationEvent() == null) || ((node.getNextValidationEvent() != null) ? node.getNextValidationEvent().ignoreEvt(): true));
 
-				long interval = node.scheduleValidationEvent(new Block(node.getMiningPool().getTransactions()), time);
+				long interval = node.scheduleValidationEvent(new Block(node.getMiningPool().getTransactions()), time);				
 				node.startMining(interval);
 			} else {
+				
 				assert((node.getNextValidationEvent() != null) && !node.getNextValidationEvent().ignoreEvt());
+				
 			}
 		} else {
 			if (!node.isMining()) {
@@ -39,7 +38,9 @@ public abstract class DefaultNodeBehavior implements NodeBehaviorStrategy {
 				// Stop mining, invalidate any future validation event.
 				assert((node.getNextValidationEvent() != null) && !node.getNextValidationEvent().ignoreEvt());
 				node.getNextValidationEvent().ignoreEvt(true);
+				
 				node.stopMining();
+				
 				assert((node.getNextValidationEvent() == null) || ((node.getNextValidationEvent() != null) ? node.getNextValidationEvent().ignoreEvt(): true));
 			}
 		}
@@ -55,9 +56,7 @@ public abstract class DefaultNodeBehavior implements NodeBehaviorStrategy {
 				new TxValuePerSizeComparator()));
 	}
 
-	public void completeValidation(TransactionGroup miningPool, long time) {
-		node.event_NodeCompletesValidation(miningPool, time);
-	}
+
 	
 	protected void transactionReceipt(Transaction t, long time) {
 		node.addTransactionToPool(t);
@@ -65,6 +64,9 @@ public abstract class DefaultNodeBehavior implements NodeBehaviorStrategy {
 		considerMining(time);
 	}
 
+	
+	
+    
     
 	@Override
 	public abstract void event_NodeReceivesClientTransaction(Transaction t, long time);

@@ -1,9 +1,7 @@
 package ca.yorku.cmg.cnsim.bitcoin.node;
 
 import ca.yorku.cmg.cnsim.bitcoin.reporter.BitcoinReporter;
-import ca.yorku.cmg.cnsim.bitcoin.structure.Block;
 import ca.yorku.cmg.cnsim.bitcoin.structure.Blockchain;
-import ca.yorku.cmg.cnsim.engine.IStructure;
 import ca.yorku.cmg.cnsim.engine.Simulation;
 import ca.yorku.cmg.cnsim.engine.config.Config;
 import ca.yorku.cmg.cnsim.engine.node.INode;
@@ -12,7 +10,6 @@ import ca.yorku.cmg.cnsim.engine.reporter.Reporter;
 import ca.yorku.cmg.cnsim.engine.transaction.ITxContainer;
 import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
 import ca.yorku.cmg.cnsim.engine.transaction.TransactionGroup;
-import ca.yorku.cmg.cnsim.engine.transaction.TxValuePerSizeComparator;
 
  
 public class BitcoinNode extends Node {
@@ -80,8 +77,13 @@ public class BitcoinNode extends Node {
 	public void event_NodeCompletesValidation(ITxContainer t, long time) {
 		behaviorStrategy.event_NodeCompletesValidation(t, time);
 	}
-
 	
+	
+	
+ 	// Called by the behavior strategy when validation is complete
+	public void completeValidation(TransactionGroup miningPool, long time) {
+		super.event_NodeCompletesValidation(miningPool, time);
+	}
 	
 	
 	//-----------------------------------------------
@@ -177,7 +179,6 @@ public class BitcoinNode extends Node {
 	@Override
 	public void close(INode n) {
 		BitcoinReporter.reportBlockChainState(
-				//Simulation.currTime, System.currentTimeMillis(), this.getID(),
 				this.blockchain.printStructureReport(this.getID()), 
 				this.blockchain.printOrphansReport(this.getID()));
 	}

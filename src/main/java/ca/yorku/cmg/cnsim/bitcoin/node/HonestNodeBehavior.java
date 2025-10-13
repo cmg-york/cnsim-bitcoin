@@ -88,11 +88,7 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
 
     @Override
     public void event_NodeCompletesValidation(ITxContainer t, long time) {
-    	System.err.println("I am in HERE!");
-    	
-    	System.err.println(t.getClass().getSimpleName());
         Block b = (Block) t;
-        System.err.println("I am in HERE!!");
         
         //Add validation information to the block.
         b.validateBlock(node.getMiningPool(),
@@ -104,7 +100,7 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
                 node.getProspectiveCycles());
 
 
-        completeValidation(node.getMiningPool(), time);
+        node.completeValidation(node.getMiningPool(), time);
 
 
         //Report the validation event

@@ -170,7 +170,7 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
             		node.getOperatingDifficulty(), 
             		node.getProspectiveCycles());
             
-            completeValidation(node.getMiningPool(), time);
+            node.completeValidation(node.getMiningPool(), time);
 
             BitcoinReporter.reportBlockEvent(
 					Simulation.currentSimulationID,
@@ -227,7 +227,7 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
             		node.getOperatingDifficulty(), 
             		node.getProspectiveCycles());
             //node.completeValidation(node.miningPool, time);
-            completeValidation(node.getMiningPool(), time);
+            node.completeValidation(node.getMiningPool(), time);
 
 
             

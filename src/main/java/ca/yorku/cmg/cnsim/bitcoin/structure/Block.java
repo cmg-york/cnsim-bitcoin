@@ -167,7 +167,8 @@ public class Block extends TransactionGroup implements Cloneable {
         if (this == other) return true;
         if (other == null || getClass() != other.getClass()) return false;
         Block block = (Block) other;
-        return height == block.height
+        return getID() == block.getID() /* NEW */ 
+        		&& height == block.height
                 && simTime_validation == block.simTime_validation
                 && sysTime_validation == block.sysTime_validation
                 && validationNodeID == block.validationNodeID
@@ -181,7 +182,8 @@ public class Block extends TransactionGroup implements Cloneable {
     @Override
     public int hashCode() {
         return Objects.hash(
-        		//context, 
+        		//context,
+        		getID(), /* NEW */
         		parent, height, simTime_validation, sysTime_validation, validationNodeID, currentNodeID, validationDifficulty, validationCycles, lastBlockEvent);
     }
 
