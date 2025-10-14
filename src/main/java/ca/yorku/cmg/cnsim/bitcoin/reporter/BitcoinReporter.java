@@ -23,7 +23,7 @@ import ca.yorku.cmg.cnsim.engine.reporter.Reporter;
  * {@linkplain ca.yorku.cmg.cnsim.bitcoin.structure.Block}.
  * </p>
  * 
- * @author Sotirios Liaskos for the Enterprise Systems Group @ York University
+ * @author Sotirios Liaskos for the Conceptual Modeling Group @ York University
  * 
  * @see Reporter
  * @see ca.yorku.cmg.cnsim.bitcoin.node.BitcoinNode

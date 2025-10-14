@@ -83,7 +83,6 @@ class BlockchainTest {
      * 5. Checking the list of tips (blocks with no children) after various additions.
      */
     @Test
-    //@Disabled
     final void testBlockInsertionAndOrphanManagement() {
     	System.out.println("testBlockInsertionAndOrphanManagement");
     	
