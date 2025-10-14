@@ -1,7 +1,7 @@
 /**
  *
  */
-package ca.yorku.cmg.cnsim.bitcoin;
+package ca.yorku.cmg.cnsim.bitcoin.structure;
 
 import ca.yorku.cmg.cnsim.bitcoin.structure.Block;
 import ca.yorku.cmg.cnsim.bitcoin.structure.Blockchain;

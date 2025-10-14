@@ -1,4 +1,4 @@
-package ca.yorku.cmg.cnsim.bitcoin;
+package ca.yorku.cmg.cnsim.bitcoin.structure;
 
 import ca.yorku.cmg.cnsim.bitcoin.structure.Block;
 import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
@@ -71,7 +71,6 @@ public class BlockTest {
     /**
      * Tests {@link Block#validateBlock}.
      */
-    @Disabled
     @Test
     public void testValidateBlock() {
         ArrayList<Transaction> newTransactions = new ArrayList<>(Arrays.asList(
@@ -85,9 +84,7 @@ public class BlockTest {
         double difficulty = 3.6;
         double cycles = 4.7;
 
-        //Block.Context previousContext = block.getContext();
         block.validateBlock(new TransactionGroup(newTransactions), simTime, sysTime, nodeID, eventType, difficulty, cycles);
-        //Block.Context newContext = block.getContext();
 
         assertEquals(newTransactions, block.getTransactions());
         assertEquals(simTime, block.getSimTime_validation());
@@ -96,15 +93,6 @@ public class BlockTest {
         assertEquals(difficulty, block.getValidationDifficulty());
         assertEquals(cycles, block.getValidationCycles());
 
-        /*
-        assertNotEquals(previousContext, newContext);
-        assertEquals(simTime, newContext.simTime);
-        assertEquals(sysTime, newContext.sysTime);
-        assertEquals(nodeID, newContext.nodeID);
-        assertEquals(eventType, newContext.blockEvt);
-        assertEquals(difficulty, newContext.difficulty);
-        assertEquals(cycles, newContext.cycles);
-        */
     }
 
     /**

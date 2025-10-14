@@ -1,4 +1,4 @@
-package ca.yorku.cmg.cnsim.bitcoin;
+package ca.yorku.cmg.cnsim.bitcoin.node;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

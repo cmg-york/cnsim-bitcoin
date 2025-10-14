@@ -1,5 +1,5 @@
 // java.lang.IllegalArgumentException: Invalid target value!
-package ca.yorku.cmg.cnsim.bitcoin;
+package ca.yorku.cmg.cnsim.bitcoin.utils;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
