@@ -135,10 +135,16 @@ public class BitcoinNode extends Node {
 	/** {@inheritDoc} */
 	@Override
 	public void beliefReport(long[] sample, long time) {
-		if (Reporter.reportsBeliefs() || Reporter.reportsBeliefsShort()) 
-			for (int i = 0; i < sample.length; i++) {
-				Reporter.addBeliefEntry(this.sim.getSimID(), this.getID(), sample[i], blockchain.transactionBelieved(sample[i]), time);	
-			}
+		for (int i = 0; i < sample.length; i++) {
+			Reporter.addBeliefEntry(
+					this.sim.getSimID(), 
+					this.getID(), 
+					sample[i],
+					blockchain.transactionBelieved(sample[i]),
+					blockchain.transactionBelief(sample[i]), 
+					time,
+					false);	
+		}
 	}
 
 	/** {@inheritDoc} */
