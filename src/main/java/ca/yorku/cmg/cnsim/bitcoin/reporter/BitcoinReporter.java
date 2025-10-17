@@ -46,24 +46,7 @@ public class BitcoinReporter extends Reporter {
     /** Flag indicating whether blockchain structure events should be reported */
 	protected static boolean reportStructureEvents;
 	
-    /**
-     * Sets whether block-level events should be logged.
-     *
-     * @param reportBlockEvents {@code true} to enable block event reporting, {@code false} to disable
-     */
-	public static void reportBlockEvents(boolean reportBlockEvents) {
-		BitcoinReporter.reportBlockEvents = reportBlockEvents;
-	}
-
-	 /**
-     * Sets whether blockchain structure events should be logged.
-     *
-     * @param reportStructureEvents {@code true} to enable structure event reporting, {@code false} to disable
-     */
-	public static void reportStructureEvents(boolean reportStructureEvents) {
-		BitcoinReporter.reportStructureEvents = reportStructureEvents;
-	}
-
+	
     /** Static initializer to add CSV headers for block and structure logs */
 	static {
 		blockLog.add("SimID, SimTime,SysTime,NodeID,"
@@ -193,5 +176,48 @@ public class BitcoinReporter extends Reporter {
 			}
 		}
 	}
+
+	
+	// -----------------------------------------------
+	// ENABLING / DISABLING REPORT TYPES
+	// -----------------------------------------------
+	
+	
+    /**
+     * Sets whether block-level events should be logged.
+     *
+     * @param reportBlockEvents {@code true} to enable block event reporting, {@code false} to disable
+     */
+	public static void reportBlockEvents(boolean reportBlockEvents) {
+		BitcoinReporter.reportBlockEvents = reportBlockEvents;
+	}
+
+	 /**
+     * Sets whether blockchain structure events should be logged.
+     *
+     * @param reportStructureEvents {@code true} to enable structure event reporting, {@code false} to disable
+     */
+	public static void reportStructureEvents(boolean reportStructureEvents) {
+		BitcoinReporter.reportStructureEvents = reportStructureEvents;
+	}
+
+    /**
+     * Returns whether block-level events are being logged.
+     *
+     * @return {@code true} if block event reporting is enabled, {@code false} otherwise
+     */
+    public static boolean reportBlockEvents() {
+        return BitcoinReporter.reportBlockEvents;
+    }
+
+    /**
+     * Returns whether blockchain structure events are being logged.
+     *
+     * @return {@code true} if structure event reporting is enabled, {@code false} otherwise
+     */
+    public static boolean reportStructureEvents() {
+        return BitcoinReporter.reportStructureEvents;
+    }
+	
 	
 }
