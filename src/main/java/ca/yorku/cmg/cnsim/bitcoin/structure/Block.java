@@ -1,6 +1,6 @@
 package ca.yorku.cmg.cnsim.bitcoin.structure;
 
-import ca.yorku.cmg.cnsim.engine.node.Node;
+import ca.yorku.cmg.cnsim.engine.node.PoWNode;
 import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
 import ca.yorku.cmg.cnsim.engine.transaction.TransactionGroup;
 
@@ -15,7 +15,7 @@ import java.util.Objects;
  * 
  * @author Sotirios Liaskos for the Conceptual Modeling Group @ York University
  * @see TransactionGroup
- * @see Node
+ * @see PoWNode
  * @see Transaction
  */
 public class Block extends TransactionGroup implements Cloneable {
@@ -117,7 +117,7 @@ public class Block extends TransactionGroup implements Cloneable {
      * @param newTransList the {@linkplain TransactionGroup} representing validated transactions
      * @param simTime      simulation time of the validation
      * @param sysTime      system time of the validation
-     * @param nodeID       ID of the {@linkplain Node} performing validation
+     * @param nodeID       ID of the {@linkplain PoWNode} performing validation
      * @param eventType    textual description of the event (for logging)
      * @param difficulty   difficulty under which the block was validated
      *                     TODO: check if this is correct.

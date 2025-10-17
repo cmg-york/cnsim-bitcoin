@@ -7,7 +7,7 @@ import ca.yorku.cmg.cnsim.bitcoin.structure.Block;
 import ca.yorku.cmg.cnsim.engine.Simulation;
 import ca.yorku.cmg.cnsim.engine.config.Config;
 import ca.yorku.cmg.cnsim.engine.config.ConfigInitializer;
-import ca.yorku.cmg.cnsim.engine.node.Node;
+import ca.yorku.cmg.cnsim.engine.node.PoWNode;
 import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
 
 
@@ -70,7 +70,7 @@ public class BitcoinMainDriver {
         // Reset Statics
         //
         //
-        Node.resetCurrID();
+        PoWNode.resetCurrID();
         Transaction.resetCurrID();
         Block.resetCurrID();
         

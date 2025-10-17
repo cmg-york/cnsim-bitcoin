@@ -3,8 +3,8 @@ package ca.yorku.cmg.cnsim.bitcoin.node;
 import ca.yorku.cmg.cnsim.engine.Simulation;
 import ca.yorku.cmg.cnsim.engine.config.Config;
 import ca.yorku.cmg.cnsim.engine.node.AbstractNodeFactory;
-import ca.yorku.cmg.cnsim.engine.node.INode;
-import ca.yorku.cmg.cnsim.engine.node.NodeSet;
+import ca.yorku.cmg.cnsim.engine.node.IMiner;
+import ca.yorku.cmg.cnsim.engine.node.PoWNodeSet;
 
 /**
  * A factory for various kinds of blockchain nodes.
@@ -15,7 +15,7 @@ import ca.yorku.cmg.cnsim.engine.node.NodeSet;
 public class BitcoinNodeFactory extends AbstractNodeFactory {
 
 	String defaultNodeType;
-	NodeSet refNs;
+	PoWNodeSet refNs;
 
 	/**
 	 * Create a new factory of a specific type (e.g., Honest, Malicious, etc.) based on the sampler embedded in the Simulator object.
@@ -29,7 +29,7 @@ public class BitcoinNodeFactory extends AbstractNodeFactory {
 		this.sampler = sim.getSampler();
 	}
 
-	public BitcoinNodeFactory(String defaultNodeType, Simulation sim, NodeSet refNs){
+	public BitcoinNodeFactory(String defaultNodeType, Simulation sim, PoWNodeSet refNs){
 		this.defaultNodeType = defaultNodeType;
 		this.sim = sim;
 		this.sampler = sim.getSampler();
@@ -41,7 +41,7 @@ public class BitcoinNodeFactory extends AbstractNodeFactory {
 	 * Create a new node based on the factory.
 	 */
 	@Override
-	public INode createNewNode() throws Exception {
+	public IMiner createNewNode() throws Exception {
 		// First, create a BitcoinNode instance without a behavior strategy
 		BitcoinNode node = new BitcoinNode(sim);
         

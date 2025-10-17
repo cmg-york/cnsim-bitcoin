@@ -5,7 +5,7 @@ import ca.yorku.cmg.cnsim.bitcoin.structure.Blockchain;
 import ca.yorku.cmg.cnsim.engine.Simulation;
 import ca.yorku.cmg.cnsim.engine.config.Config;
 import ca.yorku.cmg.cnsim.engine.node.INode;
-import ca.yorku.cmg.cnsim.engine.node.Node;
+import ca.yorku.cmg.cnsim.engine.node.PoWNode;
 import ca.yorku.cmg.cnsim.engine.reporter.Reporter;
 import ca.yorku.cmg.cnsim.engine.transaction.ITxContainer;
 import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
@@ -18,7 +18,7 @@ import ca.yorku.cmg.cnsim.engine.transaction.TransactionGroup;
  * in the mining and transaction propagation processes through a configurable
  * {@link NodeBehaviorStrategy}.
  * <p>
- * This class extends {@linkplain Node} and provides Bitcoin-specific behavior
+ * This class extends {@linkplain PoWNode} and provides Bitcoin-specific behavior
  * such as proof-of-work mining thresholds, transaction validation, and
  * blockchain reporting.
  * </p>
@@ -31,11 +31,11 @@ import ca.yorku.cmg.cnsim.engine.transaction.TransactionGroup;
  * </ul>
  *
  * @author Sotirios Liaskos for the Conceptual Modeling Group @ York University
- * @see Node
+ * @see PoWNode
  * @see NodeBehaviorStrategy
  * @see Blockchain
  */
-public class BitcoinNode extends Node {
+public class BitcoinNode extends PoWNode {
 	private NodeBehaviorStrategy behaviorStrategy;
 	private TransactionGroup miningPool;
 	private Blockchain blockchain;
@@ -238,7 +238,7 @@ public class BitcoinNode extends Node {
 
 	//TODO: move this to engine.node.Node
 	public double getProspectiveCycles() {
-		return super.prospectiveMiningCycles;
+		return super.getProspectiveMiningCycles();
 	}
 
 	@Override

@@ -5,7 +5,7 @@ import ca.yorku.cmg.cnsim.engine.Simulation;
 import ca.yorku.cmg.cnsim.engine.SimulatorFactory;
 import ca.yorku.cmg.cnsim.engine.config.Config;
 import ca.yorku.cmg.cnsim.engine.node.AbstractNodeFactory;
-import ca.yorku.cmg.cnsim.engine.node.NodeSet;
+import ca.yorku.cmg.cnsim.engine.node.PoWNodeSet;
 
 
 /**
@@ -44,7 +44,7 @@ import ca.yorku.cmg.cnsim.engine.node.NodeSet;
 public class BitcoinSimulatorFactory extends SimulatorFactory {
 	
     /**
-     * Creates a {@linkplain NodeSet} for a Bitcoin simulation.
+     * Creates a {@linkplain PoWNodeSet} for a Bitcoin simulation.
      * <p>
      * This method instantiates honest nodes first, using the {@linkplain BitcoinNodeFactory} 
      * with type "Honest", then switches to a factory for malicious nodes.
@@ -52,12 +52,12 @@ public class BitcoinSimulatorFactory extends SimulatorFactory {
      * </p>
      *
      * @param s the {@linkplain Simulation} for which the node set is being created
-     * @return a {@linkplain NodeSet} containing both honest and malicious nodes
+     * @return a {@linkplain PoWNodeSet} containing both honest and malicious nodes
      */
     @Override
-	public NodeSet createNodeSet(Simulation s) {
+	public PoWNodeSet createNodeSet(Simulation s) {
 		AbstractNodeFactory nf = new BitcoinNodeFactory("Honest", s);
-		NodeSet ns = new NodeSet(nf);
+		PoWNodeSet ns = new PoWNodeSet(nf);
 
 		ns.addNodes(Config.getPropertyInt("net.numOfHonestNodes"));
 
