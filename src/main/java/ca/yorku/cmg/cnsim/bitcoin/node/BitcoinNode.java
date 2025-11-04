@@ -2,6 +2,7 @@ package ca.yorku.cmg.cnsim.bitcoin.node;
 
 import ca.yorku.cmg.cnsim.bitcoin.reporter.BitcoinReporter;
 import ca.yorku.cmg.cnsim.bitcoin.structure.Blockchain;
+import ca.yorku.cmg.cnsim.engine.Debug;
 import ca.yorku.cmg.cnsim.engine.Simulation;
 import ca.yorku.cmg.cnsim.engine.config.Config;
 import ca.yorku.cmg.cnsim.engine.node.INode;
@@ -135,15 +136,15 @@ public class BitcoinNode extends PoWNode {
 	/** {@inheritDoc} */
 	@Override
 	public void beliefReport(long[] sample, long time) {
+
 		for (int i = 0; i < sample.length; i++) {
 			Reporter.addBeliefEntry(
 					this.sim.getSimID(), 
 					this.getID(), 
 					sample[i],
-					blockchain.transactionBelieved(sample[i]),
 					blockchain.transactionBelief(sample[i]), 
-					time,
-					false);	
+					time);
+
 		}
 	}
 
