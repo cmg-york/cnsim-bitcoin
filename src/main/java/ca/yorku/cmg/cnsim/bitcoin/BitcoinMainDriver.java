@@ -42,9 +42,17 @@ public class BitcoinMainDriver {
         
         // Get the number of simulations to run
         int numSimulations = Config.getPropertyInt("sim.numSimulations");
+        int simFrom = Config.getPropertyInt("sim.numSimulations.From");
+        int simTo = Config.getPropertyInt("sim.numSimulations.To");
 
-        for (int simID = 1; simID <= numSimulations; simID++) {
-            runSingleSimulation(simID);
+        if ((simFrom == -1) || (simTo == -1)) {
+            for (int simID = 1; simID <= numSimulations; simID++) {
+                runSingleSimulation(simID);
+            }
+        } else {
+            for (int simID = simFrom; simID <= simTo; simID++) {
+                runSingleSimulation(simID);
+            }
         }
         
         BitcoinReporter.flushAll();
