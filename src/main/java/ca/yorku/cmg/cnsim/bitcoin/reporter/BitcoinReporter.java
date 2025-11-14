@@ -75,7 +75,7 @@ public class BitcoinReporter extends Reporter {
      * @param orphans an array of strings representing the orphaned blocks
      */
 	public static void reportBlockChainState(String[] blockchain, String[] orphans) {
-		if (BitcoinReporter.reportStructureEvents) {
+		if (BitcoinReporter.reportsStructureEvents()) {
 			for (String s :blockchain) {
 				//s = SimTime + "," + SysTime + "," + blockID + "," + s + ",blockchain";
 				structureLog.add(s);
@@ -114,7 +114,7 @@ public class BitcoinReporter extends Reporter {
 			String blockEvt,
 			double difficulty, //Difficulty: the difficulty under which the block was validated.
 			double cycles) { //Cycles: the number of cycles dedicated to validate the block.
-		if (BitcoinReporter.reportBlockEvents)
+		if (BitcoinReporter.reportsBlockEvents())
 		blockLog.add(simID + "," +
 				simTime + "," + 
 				sysTime + "," +
@@ -137,13 +137,19 @@ public class BitcoinReporter extends Reporter {
         BitcoinReporter.flushStructReport();
 	}
 	
+	public static final void flushAll() {
+		Reporter.flushAll();
+		flushCustomReports();
+	}
+	
+	
 	
 	/**
 	 * Save Block report to file. File name is "BlockLog - [Simulation Date Time].csv"
 	 * 
 	 */
 	public static void flushBlockReport() {
-		if (BitcoinReporter.reportBlockEvents) {
+		if (BitcoinReporter.reportsBlockEvents()) {
 			FileWriter writer;
 			try {
 				writer = new FileWriter(Reporter.path + "BlockLog - " + Reporter.runId + ".csv");
@@ -163,7 +169,7 @@ public class BitcoinReporter extends Reporter {
 	 * 
 	 */
 	public static void flushStructReport() {
-		if (BitcoinReporter.reportStructureEvents) {
+		if (BitcoinReporter.reportsStructureEvents()) {
 			FileWriter writer;
 			try {
 				writer = new FileWriter(Reporter.path + "StructureLog - " + Reporter.runId + ".csv");
@@ -206,7 +212,7 @@ public class BitcoinReporter extends Reporter {
      *
      * @return {@code true} if block event reporting is enabled, {@code false} otherwise
      */
-    public static boolean reportBlockEvents() {
+    public static boolean reportsBlockEvents() {
         return BitcoinReporter.reportBlockEvents;
     }
 
@@ -215,7 +221,7 @@ public class BitcoinReporter extends Reporter {
      *
      * @return {@code true} if structure event reporting is enabled, {@code false} otherwise
      */
-    public static boolean reportStructureEvents() {
+    public static boolean reportsStructureEvents() {
         return BitcoinReporter.reportStructureEvents;
     }
 	
