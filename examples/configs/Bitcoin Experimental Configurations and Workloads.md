@@ -8,9 +8,9 @@ editor: visual
 
 |                                                        Configuration                                                        | Data | Description                                                                                                                                                                                                                                                                                        |
 | :-------------------------------------------------------------------------------------------------------------------------: | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`bitcoin.application.properties`](./bitcoin.application.properties) <br>(\[Standard Bitcoin Network\])<br>Code: `faithful` |      | Realistic Bitcoin simulation with:<br>- 30 nodes<br>- Difficulty, power, arrival rate, tx size, parameters as of `2024-11-25`<br>- Duration: 3 hour                                                                                                                                                |
+| [`bitcoin.application.properties`](./bitcoin.application.properties) <br>(\[Standard Bitcoin Network\])<br>Code: `faithful` |      | Realistic Bitcoin simulation with:<br>- 30 nodes<br>- Difficulty, power, arrival rate, tx size, parameters as of `2024-11-25`<br>- Observed block time that day: `8.521`<br>- Duration: 3 hour                                                                                                     |
 |                          `light1.application.properties`<br>(\[Lightweight Bitcoin Simulation 1\])                          |      | As above but with:<br><br>- $\lambda$ = 1 (instead of realistic)<br>    <br>- Mean tx size = `1461.15` to make up for the fewer transactions.<br>    <br>- This results for about 3600 arrivals per hour allowing for faster simulations.<br>    <br>- Target transactions are now {10,11,...20}\| |
-|                                                                                                                             |      |                                                                                                                                                                                                                                                                                                    |
+
 
 # Standard Bitcoin Network
 Configuration file: `bitcoin.application.properties`
@@ -26,10 +26,10 @@ Difficulty is fetched from [CoinWarz](https://www.coinwarz.com/mining/bitcoin/di
 ```         
 pow.difficulty = 4.3933637821322E+23
 ```
-The hashpower of the network estimated on `2024-11-25` is `859.34M TH/s`, according to [YCharts](https://ycharts.com/indicators/bitcoin_network_hash_rate). This is `8.5934e+20 H/s`. For simplicity we assume that this is shared among our 30 nodes, so each has an average power `2.8644667e+19 H/S`. We further assume a `10%` coefficient of variation (CV) so the standard deviation will be `2.8644667e+18 H/S`. Note that, with this way of splitting the hashpowers, summing up the individual hashpowers will likely deviate from the original total hashpower measurement.
+The hashpower of the network estimated on `2024-11-25` is `859.34M TH/s`, according to [YCharts](https://ycharts.com/indicators/bitcoin_network_hash_rate). This is `8.5934e+20 H/s`. For simplicity we assume that this is shared among our 30 nodes, so each has an average power `2.8644667e+19 H/S`. We further assume a `10%` coefficient of variation (CV) so the standard deviation will be `2.8644667e+18 H/S`. Note that, with this way of splitting the hashpowers, summing up the individual hashpowers will likely deviate from the original total hashpower measurement. CNSim measures power in `GH/s`, so the corresponding exponents are `-9`:
 ```         
-pow.hashPowerMean = 2.8644667e+19
-pow.hashPowerSD = 2.8644667e+18
+pow.hashPowerMean = 2.8644667e+10
+pow.hashPowerSD = 2.8644667e+9
 ```
 ## Workload design
 The arrival rate obtained from [Blockchain.com](https://www.blockchain.com/explorer/charts/transactions-per-second) for the date in question is $\lambda$ = `6.494 tx/sec`. That will mean a total of `70,135` transactions included in the workload. According to the same source the average transaction fee is `$3.366 USD` with `1 BTC = $93,003.21 USD`, hence `3.366/93,003.21 = 0.00003619229 BTC = 3.619229E-5 BTC = 3,619.23 SATS`. We will again assume a CV of `10%` for fees.
