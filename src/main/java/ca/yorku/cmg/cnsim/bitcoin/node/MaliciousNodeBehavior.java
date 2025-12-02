@@ -249,7 +249,7 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                     
                     startAttack(b);
                     node.getStructure().addToStructure(b);
-                    node.propagateContainer(b, time);
+                    node.broadcastContainer(b, time);
                     lastBlock = (Block) b.getParent();
                     node.stopMining();
                     node.resetNextValidationEvent();
@@ -296,7 +296,7 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                     node.getStructure().addToStructure(b);
                     try {
                     	//Propagate a clone of the block to the rest of the network
-						node.propagateContainer((ITxContainer) b.clone(), time);
+						node.broadcastContainer((ITxContainer) b.clone(), time);
 					} catch (CloneNotSupportedException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
@@ -325,7 +325,7 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
             Block b = hiddenChain.get(i);
             b.setParent(i==0 ? lastBlock : hiddenChain.get(i-1));
             node.getStructure().addToStructure(b);
-            node.propagateContainer(b, Simulation.currTime);
+            node.broadcastContainer(b, Simulation.currTime);
         }
         isAttackInProgress = false;
         hiddenChain = new ArrayList<Block>();

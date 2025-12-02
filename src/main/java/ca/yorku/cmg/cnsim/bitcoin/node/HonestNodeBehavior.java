@@ -72,7 +72,7 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
         // Process the transaction as per normal rules
         // For instance, add the transaction to the node's pool if it's valid
         transactionReceipt(t,time);
-        node.propagateTransaction(t,time);
+        node.broadcastTransaction(t,time);
     }
 
     /**
@@ -201,7 +201,7 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
             
             //Propagate a clone of the block to the rest of the network
             try {
-				node.propagateContainer((ITxContainer) b.clone(), time);
+				node.broadcastContainer((ITxContainer) b.clone(), time);
 			} catch (CloneNotSupportedException e) {
 				e.printStackTrace();
 			}
