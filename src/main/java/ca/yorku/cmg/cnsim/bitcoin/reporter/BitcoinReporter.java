@@ -49,9 +49,9 @@ public class BitcoinReporter extends Reporter {
 	
     /** Static initializer to add CSV headers for block and structure logs */
 	static {
-		blockLog.add("SimID, SimTime,SysTime,NodeID,"
-				+ "BlockID,ParentID,Height,BlockContent,"
-				+ "EvtType,Difficulty,Cycles");
+		blockLog.add("SimID, SimTime, SysTime, NodeID, "
+				+ "BlockID, ParentID, Height, BlockContent,"
+				+ "EventType, Difficulty, Cycles");
 		structureLog.add("SimID, SimTime, SysTime, NodeID, BlockID, ParentBlockID, Height, Content, Place");
 	}
 	
