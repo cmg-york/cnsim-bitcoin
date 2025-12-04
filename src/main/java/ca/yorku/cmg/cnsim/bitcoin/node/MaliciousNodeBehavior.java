@@ -305,7 +305,7 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                             b.getValidationCycles());
 
                     node.getStructure().addToStructure(b);
-                    node.propagateContainer(b, time);
+                    node.broadcastContainer(b, time);
                     lastBlock = (Block) b.getParent();
 
                     // Record the transaction block height if not already set
@@ -370,7 +370,7 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                     node.getStructure().addToStructure(b);
                     try {
                     	//Propagate a clone of the block to the rest of the network
-						node.propagateContainer((ITxContainer) b.clone(), time);
+						node.broadcastContainer((ITxContainer) b.clone(), time);
 					} catch (CloneNotSupportedException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
@@ -399,7 +399,7 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
             Block b = hiddenChain.get(i);
             b.setParent(i==0 ? lastBlock : hiddenChain.get(i-1));
             node.getStructure().addToStructure(b);
-            node.propagateContainer(b, Simulation.currTime);
+            node.broadcastContainer(b, Simulation.currTime);
         }
         isAttackInProgress = false;
         hiddenChain = new ArrayList<Block>();
