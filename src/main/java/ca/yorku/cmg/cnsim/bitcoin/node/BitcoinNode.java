@@ -90,6 +90,15 @@ public class BitcoinNode extends PoWNode {
 	public void setBehaviorStrategy(NodeBehaviorStrategy strategy) {
 		this.behaviorStrategy = strategy;
 	}
+	
+	/**
+	 * Returns the node's current {@link NodeBehaviorStrategy}.
+	 *
+	 * @return the behavior strategy, or null if not set
+	 */
+	public NodeBehaviorStrategy getBehaviorStrategy() {
+		return this.behaviorStrategy;
+	}
 
 	/** {@inheritDoc} */
 	@Override
