@@ -6,6 +6,8 @@ package ca.yorku.cmg.cnsim.bitcoin.structure;
 import ca.yorku.cmg.cnsim.bitcoin.structure.Block;
 import ca.yorku.cmg.cnsim.bitcoin.structure.Blockchain;
 import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
+import ca.yorku.cmg.cnsim.engine.transaction.TxConflictRegistry;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;

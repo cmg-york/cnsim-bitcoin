@@ -2,13 +2,12 @@ package ca.yorku.cmg.cnsim.bitcoin.structure;
 
 import ca.yorku.cmg.cnsim.bitcoin.node.BitcoinNode;
 import ca.yorku.cmg.cnsim.bitcoin.reporter.BitcoinReporter;
-import ca.yorku.cmg.cnsim.engine.Debug;
 import ca.yorku.cmg.cnsim.engine.IStructure;
 import ca.yorku.cmg.cnsim.engine.Simulation;
 import ca.yorku.cmg.cnsim.engine.reporter.Reporter;
 import ca.yorku.cmg.cnsim.engine.transaction.ITxContainer;
 import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
-import ca.yorku.cmg.cnsim.engine.transaction.TransactionGroup;
+import ca.yorku.cmg.cnsim.engine.transaction.TxConflictRegistry;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -46,7 +45,6 @@ public class Blockchain implements IStructure {
 	
 	
 	
-
 	//----------------------------------------------------------------
 	// ADDING BLOCKS
 	//----------------------------------------------------------------
@@ -347,15 +345,35 @@ public class Blockchain implements IStructure {
 	 * @return Return {@code true} if it is contained {@code false} otherwise.
 	 */
 	public boolean contains(Transaction t) {
-		boolean found = false;
+		return(contains(t.getID()));
+		/* boolean found = false;
 		for (Block b : blockchain) {
 			for (Transaction r:b.getTransactions()) {
 				if (r.getID() == t.getID()) found = true;
 			}
 		}
 		return found;
+		*/
 	}
 
+	
+	/**
+	 * Checks if a {@linkplain Transaction} is contained (anywhere) in the blockchain. Likely to be used in the gossip stage.
+	 *
+	 * @param txID The {@linkplain Transaction} ID to be checked.
+	 * @return Return {@code true} if it is contained {@code false} otherwise.
+	 */
+	public boolean contains(long txID) {
+		boolean found = false;
+		for (Block b : blockchain) {
+			for (Transaction r:b.getTransactions()) {
+				if (r.getID() == txID) found = true;
+			}
+		}
+		return found;
+	}
+	
+	
 	/**
 	 * Checks if a {@linkplain Block} is contained in the blockchain. Search by ID.
 	 * @param block Is the {@linkplain Block} to be checked.
