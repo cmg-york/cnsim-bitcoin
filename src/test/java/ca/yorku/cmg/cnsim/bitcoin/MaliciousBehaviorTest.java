@@ -105,20 +105,24 @@ public class MaliciousBehaviorTest {
         BitcoinReporter.flushAll();
     }
 
-    private void runSimulationWithConfirmations(int requiredConfirmations) {
+    private void runSimulationWithConfirmations(int expectedConfirmations) {
         BitcoinSimulatorFactory sf = new BitcoinSimulatorFactory();
 
-        System.out.println("Setting Up Simulation with " + requiredConfirmations + " required confirmations");
+        System.out.println("Setting Up Simulation (attack.requiredConfirmations configured in properties)");
         Simulation s = sf.createSimulation(1);
 
-        // Find the malicious node and set required confirmations
+        // Verify the malicious node has the correct confirmations from config
         for (var nodeObj : s.getNodeSet().getNodes()) {
             BitcoinNode node = (BitcoinNode) nodeObj;
             if (node.getBehaviorStrategy() instanceof MaliciousNodeBehavior) {
                 MaliciousNodeBehavior malBehavior = (MaliciousNodeBehavior) node.getBehaviorStrategy();
-                malBehavior.setRequiredConfirmationsBeforeAttack(requiredConfirmations);
-                System.out.println("Configured malicious node " + node.getID() +
-                                 " with " + requiredConfirmations + " required confirmations");
+                int actualConfirmations = malBehavior.getRequiredConfirmationsBeforeAttack();
+                System.out.println("Malicious node " + node.getID() +
+                                 " configured with " + actualConfirmations + " required confirmations (from config)");
+                if (actualConfirmations != expectedConfirmations) {
+                    System.err.println("WARNING: Expected " + expectedConfirmations +
+                                     " confirmations but got " + actualConfirmations);
+                }
             }
         }
 

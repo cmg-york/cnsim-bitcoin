@@ -57,6 +57,13 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
         } catch (Exception e) {
             this.maxChainLength = 15; // Default value
         }
+
+        // Read required confirmations before attack from configuration (default: 0 = immediate)
+        try {
+            this.requiredConfirmationsBeforeAttack = Config.getPropertyInt("attack.requiredConfirmations");
+        } catch (Exception e) {
+            this.requiredConfirmationsBeforeAttack = 0; // Default value: immediate attack
+        }
     }
 
 
