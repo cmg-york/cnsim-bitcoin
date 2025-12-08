@@ -3,23 +3,25 @@ import ca.yorku.cmg.cnsim.bitcoin.reporter.BitcoinReporter;
 import ca.yorku.cmg.cnsim.bitcoin.structure.Block;
 import ca.yorku.cmg.cnsim.engine.Debug;
 import ca.yorku.cmg.cnsim.engine.Simulation;
+import ca.yorku.cmg.cnsim.engine.config.Config;
 import ca.yorku.cmg.cnsim.engine.transaction.ITxContainer;
 import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
 
 import java.util.ArrayList;
 
 public class MaliciousNodeBehavior extends DefaultNodeBehavior {
-    //TODO: Make these parameterizable
-	//private static final int MIN_CHAIN_LENGTH = 6;
-	private static final int MIN_CHAIN_LENGTH = 2;
-    private static final int MAX_CHAIN_LENGTH = 15;
+    /** Minimum chain length before revealing hidden chain (configurable). */
+    private int minChainLength;
+
+    /** Maximum chain length - reveal even if not ahead to avoid falling too far behind (configurable). */
+    private int maxChainLength;
 
     private ArrayList<Block> hiddenChain=new ArrayList<Block>();
     private Transaction targetTransaction;
 	private int targetTxID;
 
     private boolean isAttackInProgress = false;
-    private BitcoinNode node;
+    // Note: node field is inherited from DefaultNodeBehavior
     private HonestNodeBehavior honestBehavior;
     private int blockchainSizeAtAttackStart;
     private Block lastBlock;
@@ -35,12 +37,26 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
     
     /**
      * Constructor. Creates also a shadow honest behavior object.
+     * Reads chain length parameters from configuration.
      * @param node The node which has the behavior.
      */
     public MaliciousNodeBehavior(BitcoinNode node) {
         this.isAttackInProgress = false;
         this.node = node;
         this.honestBehavior = new HonestNodeBehavior(node);
+
+        // Read chain length parameters from configuration with default values
+        try {
+            this.minChainLength = Config.getPropertyInt("attack.minChainLength");
+        } catch (Exception e) {
+            this.minChainLength = 2; // Default value
+        }
+
+        try {
+            this.maxChainLength = Config.getPropertyInt("attack.maxChainLength");
+        } catch (Exception e) {
+            this.maxChainLength = 15; // Default value
+        }
     }
 
 
@@ -487,8 +503,8 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
     }
 
     private boolean shouldRevealHiddenChain() {
-        return (hiddenChain.size() > publicChainGrowthSinceAttack && publicChainGrowthSinceAttack > MIN_CHAIN_LENGTH)
-                || publicChainGrowthSinceAttack > MAX_CHAIN_LENGTH;
+        return (hiddenChain.size() > publicChainGrowthSinceAttack && publicChainGrowthSinceAttack > minChainLength)
+                || publicChainGrowthSinceAttack > maxChainLength;
     }
 
     private void checkAndRevealHiddenChain(Block b) {
