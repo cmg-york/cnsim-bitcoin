@@ -70,9 +70,22 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
     @Override
     public void event_NodeReceivesClientTransaction(Transaction t, long time) {
         // Process the transaction as per normal rules
-        // For instance, add the transaction to the node's pool if it's valid
-        transactionReceipt(t,time);
-        node.broadcastTransaction(t,time);
+
+    	// Get the conflicting transaction if any
+    	long conflict = node.getSim().getConflictRegistry().getMatch((int) t.getID());
+    	
+    	if (conflict == -2) throw new IllegalStateException("Conflict for transaction " + t.getID() + " uninitialized");
+    	
+    	//If conflict does not exist or it is not [in the pool or in the blockchain].
+    	if ( (conflict == -1) || 
+    		 !(node.getPool().contains(conflict) 
+    		   || 
+    		   node.getStructure().contains(conflict)
+    		  )
+    		) { //it either does not exist or does not overlap
+            transactionReceipt(t,time);
+            node.broadcastTransaction(t,time);
+    	}
     }
 
     /**
@@ -90,9 +103,23 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
     public void event_NodeReceivesPropagatedTransaction(Transaction t, long time) {
         // Handle reception of propagated transactions
         // Add to the pool if not already present and it's valid
-        if (!node.getPool().contains(t) && !node.getStructure().contains(t)) {
-            transactionReceipt(t,time);
-        }
+
+    	// Get the conflicting transaction if any
+    	long conflict = node.getSim().getConflictRegistry().getMatch((int) t.getID());
+    	
+    	//If conflict does not exist or it is not [in the pool or in the blockchain].
+    	if ( (conflict == -1) || 
+    		 !(node.getPool().contains(conflict) 
+    		   || 
+    		   node.getStructure().contains(conflict)
+    		  )
+    		) { //it either does not exist or does not overlap
+    		// Check next if the transaction itself is conflicting 
+    		if (!node.getPool().contains(t) && !node.getStructure().contains(t)) {
+                transactionReceipt(t,time);
+            }
+    		
+    	}
     }
 
     
@@ -126,8 +153,12 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
                 b.getLastBlockEvent(), 
                 b.getValidationDifficulty(),
                 b.getValidationCycles());
-                
-        if (!node.getStructure().contains(b)){
+
+        
+        Block cB = getConflictBlock(b);
+        
+        
+        if (!node.getStructure().contains(b) && !node.getStructure().contains(cB)) {
             handleNewBlockReception(b);
         } else {
             //Discard the block and report the event.
@@ -232,6 +263,28 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
 
 
     /**
+	 * Extracts conflicting transactions from a given block based on the node's
+	 * conflict registry. The returning transactions are not real but manufactured as stand-ins
+	 * for the real transactions that have the same IDs. 
+	 * 
+	 * Works assuming equality of transactions is defined by ID.
+	 *
+	 * @param b the block to analyze for conflicts
+	 * @return a new block containing only conflicting transactions.
+	 */
+    private Block getConflictBlock(Block b) { 
+        Block conflictBlock = new Block();
+        for (Transaction r : b.getTransactions()) {
+        	long conflict = node.getSim().getConflictRegistry().getMatch((int) r.getID());
+        	if (conflict != -1) {
+        		conflictBlock.addTransaction(new Transaction(conflict));
+        	}
+        }
+        return (conflictBlock);
+    }
+    
+    
+    /**
      * Integrates a newly received block into the node’s blockchain and updates
      * the transaction pool accordingly.
      * <p>
@@ -245,6 +298,7 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
         //Add block to blockchain
         node.getStructure().addToStructure(b);
         //Remove block transactions from pool.
+        //Conflicts are not supposed to be there anyway as the pool is guarded.
         node.getPool().extractGroup(b);
         // Reconstruct mining pool based on the new information.
         reconstructMiningPool();
@@ -266,9 +320,9 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
      * @param time the current simulation time
      */
     void processPostValidationActivities(long time) {
-        //Stop mining for now. TODO: why do you do this?
+        //Stop mining for now.
         node.stopMining();
-        //Reset the next validation event. TODO: why do you do this?
+        //Reset the next validation event.
         node.resetNextValidationEvent();
         //Remove the block's transactions from the mining pool.
         node.removeFromPool(node.getMiningPool());
