@@ -69,6 +69,9 @@ workload.txSizeMean = 225f
 workload.txSizeSD = 120.9471f
 workload.txFeeValueMean = 3619.23f
 workload.txFeeValueSD = 369.19f
+workload.hasConflicts = true
+workload.conflicts.dispersion = 0.1
+workload.conflicts.likelihood = 0.05
 
 attack.requiredConfirmations = 0
 attack.minChainLength = 2
@@ -173,6 +176,9 @@ workload.txSizeMean = 225f
 workload.txSizeSD = 120.9471f
 workload.txFeeValueMean = 3619.23f
 workload.txFeeValueSD = 369.19f
+workload.hasConflicts = true
+workload.conflicts.dispersion = 0.1
+workload.conflicts.likelihood = 0.05
 
 attack.requiredConfirmations = 0
 attack.minChainLength = 2
@@ -274,6 +280,9 @@ workload.txSizeMean = 225f
 workload.txSizeSD = 120.9471f
 workload.txFeeValueMean = 3619.23f
 workload.txFeeValueSD = 369.19f
+workload.hasConflicts = true
+workload.conflicts.dispersion = 0.1
+workload.conflicts.likelihood = 0.05
 
 attack.requiredConfirmations = 0
 attack.minChainLength = 2

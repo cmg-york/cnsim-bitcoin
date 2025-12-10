@@ -7,7 +7,6 @@ import ca.yorku.cmg.cnsim.engine.Simulation;
 import ca.yorku.cmg.cnsim.engine.reporter.Reporter;
 import ca.yorku.cmg.cnsim.engine.transaction.ITxContainer;
 import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
-import ca.yorku.cmg.cnsim.engine.transaction.TxConflictRegistry;
 
 import java.util.ArrayList;
 import java.util.Collections;
