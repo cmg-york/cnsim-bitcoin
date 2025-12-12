@@ -73,6 +73,8 @@ workload.hasConflicts = true
 workload.conflicts.dispersion = 0.1
 workload.conflicts.likelihood = 0.05
 
+reporter.reportAttackEvents = false
+
 attack.requiredConfirmations = 0
 attack.minChainLength = 2
 attack.maxChainLength = 15
@@ -180,6 +182,8 @@ workload.hasConflicts = true
 workload.conflicts.dispersion = 0.1
 workload.conflicts.likelihood = 0.05
 
+reporter.reportAttackEvents = false
+
 attack.requiredConfirmations = 0
 attack.minChainLength = 2
 attack.maxChainLength = 15
@@ -283,6 +287,8 @@ workload.txFeeValueSD = 369.19f
 workload.hasConflicts = true
 workload.conflicts.dispersion = 0.1
 workload.conflicts.likelihood = 0.05
+
+reporter.reportAttackEvents = false
 
 attack.requiredConfirmations = 0
 attack.minChainLength = 2

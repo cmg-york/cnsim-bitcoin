@@ -23,9 +23,10 @@ public class ConfigurationParsingTest {
      * Helper method to invoke the private parseHashPowerChanges method via reflection.
      */
     private Object[] parseHashPowerChanges(String input) throws Exception {
+        BitcoinSimulatorFactory factory = new BitcoinSimulatorFactory();
         Method method = BitcoinSimulatorFactory.class.getDeclaredMethod("parseHashPowerChanges", String.class);
         method.setAccessible(true);
-        return (Object[]) method.invoke(null, input);
+        return (Object[]) method.invoke(factory, input);
     }
 
     @Test

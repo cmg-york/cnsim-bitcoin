@@ -60,7 +60,7 @@ public class BitcoinSimulatorFactory extends SimulatorFactory {
 	 * Represents a single hashpower change configuration entry.
 	 * Contains the node ID, new hashpower value, and time when the change should occur.
 	 */
-	private static class HashPowerChange {
+	private class HashPowerChange {
 		final int nodeID;
 		final float newHashPower;
 		final long time;
@@ -87,7 +87,7 @@ public class BitcoinSimulatorFactory extends SimulatorFactory {
 	 * @return array of {@link HashPowerChange} objects
 	 * @throws IllegalArgumentException if the format is invalid
 	 */
-	private static HashPowerChange[] parseHashPowerChanges(String input) {
+	private HashPowerChange[] parseHashPowerChanges(String input) {
 		if (input == null || input.isEmpty() || input.equals("{}")) {
 			return new HashPowerChange[0];
 		}
@@ -173,7 +173,8 @@ public class BitcoinSimulatorFactory extends SimulatorFactory {
 
 			for (HashPowerChange change : changes) {
 				// Get the node from the network's nodeset
-				INode node = s.getNetwork().getNodeSet().getNodes().get(change.nodeID);
+				// Note: Node IDs start at 1, but ArrayList indices start at 0
+				INode node = s.getNetwork().getNodeSet().getNodes().get(change.nodeID - 1);
 
 				if (node == null) {
 					Debug.e("Warning: Cannot schedule hashpower change for node " + change.nodeID +

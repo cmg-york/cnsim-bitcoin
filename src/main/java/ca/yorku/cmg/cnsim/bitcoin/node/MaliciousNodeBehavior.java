@@ -10,10 +10,19 @@ import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
 import java.util.ArrayList;
 
 public class MaliciousNodeBehavior extends DefaultNodeBehavior {
-    /** Minimum chain length before revealing hidden chain (configurable). */
+    /**
+     * Minimum number of blocks the attacker must mine on the hidden chain before attempting to reveal it.
+     * The attacker will only reveal the hidden chain if it is at least this many blocks longer than when the attack started.
+     * Configured via {@code attack.minChainLength} property.
+     */
     private int minChainLength;
 
-    /** Maximum chain length - reveal even if not ahead to avoid falling too far behind (configurable). */
+    /**
+     * Maximum number of blocks the attacker will mine on the hidden chain before revealing regardless of public chain status.
+     * This prevents the attacker from falling too far behind if the public chain is growing faster.
+     * Once the hidden chain reaches this length, it will be revealed even if not ahead of the public chain.
+     * Configured via {@code attack.maxChainLength} property.
+     */
     private int maxChainLength;
 
     private ArrayList<Block> hiddenChain=new ArrayList<Block>();
@@ -94,6 +103,21 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
         isAttackInProgress = true;
         calculateBlockchainSizeAtAttackStart();
         Debug.p("Starting attack! at time " + Simulation.currTime);
+
+        // Report attack start event
+        BitcoinReporter.reportAttackEvent(
+                node.getSim().getSimID(),
+                Simulation.currTime,
+                System.currentTimeMillis(),
+                node.getID(),
+                "Attack Start",
+                targetTxID,
+                b.getID(),
+                targetTransactionBlockHeight,
+                0, // hidden chain length at start
+                node.getStructure().getBlockchainHeight(),
+                "Attack initiated after " + requiredConfirmationsBeforeAttack + " confirmations"
+        );
     }
 
 
@@ -130,6 +154,21 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                 // Record the transaction block height if not already set
                 if (targetTransactionBlockHeight == -1) {
                     targetTransactionBlockHeight = b.getHeight();
+
+                    // Report target transaction arrival
+                    BitcoinReporter.reportAttackEvent(
+                            node.getSim().getSimID(),
+                            Simulation.currTime,
+                            System.currentTimeMillis(),
+                            node.getID(),
+                            "Target TX Arrival",
+                            targetTxID,
+                            b.getID(),
+                            b.getHeight(),
+                            0,
+                            node.getStructure().getBlockchainHeight(),
+                            "Target transaction " + targetTxID + " appeared in block " + b.getID()
+                    );
                 }
 
                 // Check if we have enough confirmations before starting attack
@@ -425,9 +464,25 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
             node.broadcastContainer(b, Simulation.currTime);
         }
         isAttackInProgress = false;
+        int revealedChainLength = hiddenChain.size();
         hiddenChain = new ArrayList<Block>();
         node.removeFromPool(targetTxID);
         Debug.p("Chain reveal! at time " + Simulation.currTime);
+
+        // Report chain reveal event
+        BitcoinReporter.reportAttackEvent(
+                node.getSim().getSimID(),
+                Simulation.currTime,
+                System.currentTimeMillis(),
+                node.getID(),
+                "Chain Reveal",
+                targetTxID,
+                -1,
+                targetTransactionBlockHeight,
+                revealedChainLength,
+                node.getStructure().getBlockchainHeight(),
+                "Revealed hidden chain of length " + revealedChainLength
+        );
     }
 
     
