@@ -6,6 +6,7 @@ import ca.yorku.cmg.cnsim.engine.Simulation;
 import ca.yorku.cmg.cnsim.engine.SimulatorFactory;
 import ca.yorku.cmg.cnsim.engine.config.Config;
 import ca.yorku.cmg.cnsim.engine.event.Event_HashPowerChange;
+import ca.yorku.cmg.cnsim.engine.exceptions.ConfigurationException;
 import ca.yorku.cmg.cnsim.engine.node.AbstractNodeFactory;
 import ca.yorku.cmg.cnsim.engine.node.IMiner;
 import ca.yorku.cmg.cnsim.engine.node.INode;
@@ -85,7 +86,7 @@ public class BitcoinSimulatorFactory extends SimulatorFactory {
 	 *
 	 * @param input the configuration string
 	 * @return array of {@link HashPowerChange} objects
-	 * @throws IllegalArgumentException if the format is invalid
+	 * @throws ConfigurationException if the format is invalid
 	 */
 	private HashPowerChange[] parseHashPowerChanges(String input) {
 		if (input == null || input.isEmpty() || input.equals("{}")) {
@@ -94,10 +95,10 @@ public class BitcoinSimulatorFactory extends SimulatorFactory {
 
 		// Validate braces
 		if (!input.startsWith("{")) {
-			throw new IllegalArgumentException("Error in node.hashPowerChanges: missing opening bracket. Got: " + input);
+			throw new ConfigurationException("Error in node.hashPowerChanges: missing opening bracket. Got: " + input);
 		}
 		if (!input.endsWith("}")) {
-			throw new IllegalArgumentException("Error in node.hashPowerChanges: missing closing bracket. Got: " + input);
+			throw new ConfigurationException("Error in node.hashPowerChanges: missing closing bracket. Got: " + input);
 		}
 
 		// Remove braces and split by comma
