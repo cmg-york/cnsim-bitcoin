@@ -72,7 +72,11 @@ public class BitcoinReporter extends Reporter {
 	public static void initialize() {
 		BitcoinReporter.reportBlockEvents(Config.getPropertyBoolean("reporter.reportBlockEvents"));
 		BitcoinReporter.reportStructureEvents(Config.getPropertyBoolean("reporter.reportStructureEvents"));
-		BitcoinReporter.reportAttackEvents(Config.getPropertyBoolean("reporter.reportAttackEvents"));
+		if (Config.hasProperty("reporter.reportAttackEvents")) {
+			BitcoinReporter.reportAttackEvents(Config.getPropertyBoolean("reporter.reportAttackEvents"));
+		} else {
+			BitcoinReporter.reportAttackEvents(false);
+		}
 	}
 	
 	

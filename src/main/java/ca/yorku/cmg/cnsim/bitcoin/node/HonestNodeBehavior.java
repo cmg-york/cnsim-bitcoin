@@ -69,24 +69,28 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
      */
     @Override
     public void event_NodeReceivesClientTransaction(Transaction t, long time) {
-        // Process the transaction as per normal rules
+    	boolean conflictFree = conflictFree(t);
+    	boolean dependenciesPresent = dependenciesPresent(t);
 
-    	// Get the conflicting transaction if any
-    	long conflict = node.getSim().getConflictRegistry().getMatch((int) t.getID());
-    	
-    	if (conflict == -2) throw new IllegalStateException("Conflict for transaction " + t.getID() + " uninitialized");
-    	
-    	//If conflict does not exist or it is not [in the pool or in the blockchain].
-    	if ( (conflict == -1) || 
-    		 !(node.getPool().contains(conflict) 
-    		   || 
-    		   node.getStructure().contains(conflict)
-    		  )
-    		) { //it either does not exist or does not overlap
+    	if (conflictFree && dependenciesPresent) { 
             transactionReceipt(t,time);
             node.broadcastTransaction(t,time);
+    	} else {
+    		
+    		String msg = (dependenciesPresent ? " " : " dependencies not satisfied ") +
+    				(conflictFree? " " : " conflicts present");
+    		BitcoinReporter.addEvent(
+				Simulation.currentSimulationID,
+				-1,
+				Simulation.currTime,
+				System.currentTimeMillis() - Simulation.sysStartTime,
+				"Discarding Tx due to: " + msg,
+    			node.getID(),
+    			t.getID(),
+    			"");
     	}
     }
+    
 
     /**
      * Handles transactions propagated from other nodes.
@@ -101,24 +105,40 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
      */
     @Override
     public void event_NodeReceivesPropagatedTransaction(Transaction t, long time) {
-        // Handle reception of propagated transactions
-        // Add to the pool if not already present and it's valid
-
-    	// Get the conflicting transaction if any
-    	long conflict = node.getSim().getConflictRegistry().getMatch((int) t.getID());
     	
-    	//If conflict does not exist or it is not [in the pool or in the blockchain].
-    	if ( (conflict == -1) || 
-    		 !(node.getPool().contains(conflict) 
-    		   || 
-    		   node.getStructure().contains(conflict)
-    		  )
-    		) { //it either does not exist or does not overlap
-    		// Check next if the transaction itself is conflicting 
-    		if (!node.getPool().contains(t) && !node.getStructure().contains(t)) {
+    	boolean conflictFree = conflictFree(t);
+    	boolean dependenciesPresent = dependenciesPresent(t);
+    	boolean containedInPool = node.getPool().contains(t);
+    	boolean containedInStructure = node.getStructure().contains(t);
+
+    	if (conflictFree && dependenciesPresent) {
+    		if (!containedInPool && !containedInStructure) {
                 transactionReceipt(t,time);
+            } else {
+            	String msg = (containedInPool ? " pool, ": "") + (containedInStructure ? " structure." : "");
+            	String contents = (containedInPool ? " Pool, " + node.getPool().printIDs(";") : "") + (containedInStructure ? " structure." : "");
+        		BitcoinReporter.addEvent(
+        				Simulation.currentSimulationID,
+        				-1,
+        				Simulation.currTime,
+        				System.currentTimeMillis() - Simulation.sysStartTime,
+        				"Discarding Tx due to: tx contained in system" + msg,
+            			node.getID(),
+            			t.getID(),
+            			contents);
             }
-    		
+    	} else {
+    		String msg = (dependenciesPresent ? " " : " dependencies not satisfied ") +
+    				(conflictFree? " " : " conflicts present");
+    		BitcoinReporter.addEvent(
+				Simulation.currentSimulationID,
+				-1,
+				Simulation.currTime,
+				System.currentTimeMillis() - Simulation.sysStartTime,
+				"Discarding Tx due to: " + msg,
+    			node.getID(),
+    			t.getID(),
+    			"");
     	}
     }
 
@@ -153,18 +173,31 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
                 b.getLastBlockEvent(), 
                 b.getValidationDifficulty(),
                 b.getValidationCycles());
-
         
         Block cB = getConflictBlock(b);
         
-        
-        if (!node.getStructure().contains(b) && !node.getStructure().contains(cB)) {
+        //Must check every 
+        if (!node.getStructure().contains(b) 
+        		&& 
+        		!node.getStructure().contains(cB)
+        		//&& node.getStructure().satisfiesDependencies(b,node.getSim().getDependencyRegistry())
+        		) {
             handleNewBlockReception(b);
         } else {
             //Discard the block and report the event.
-            //reportBlockEvent(b, "Propagated Block Discarded");
-        	BitcoinReporter.addErrorEntry("Node::event_NodeReceivesPropagatedContainer: NodeBlock " + b.getID() + " containing " + b.printIDs(",") + " received through propagation is found to overlap with structure.");
-            b.setLastBlockEvent("ERROR: propagated Block already exists");
+        	String msg = "";
+        	if (node.getStructure().contains(b)) {
+        		msg += "overlap with structure, ";
+        	} 
+        	if (node.getStructure().contains(cB)) {
+        		msg += "conflict with structure, ";
+        	}
+        	if (!node.getStructure().satisfiesDependencies(b,node.getSim().getDependencyRegistry())) {
+        		msg += "not satisfy dependencies, ";
+        	}        
+        	
+        	BitcoinReporter.addErrorEntry("Node::event_NodeReceivesPropagatedContainer: (" + node.getSim().getSimID() + "," + Simulation.currTime + ") Node " + this.node.getID() + " Block " + b.getID() + " containing " + b.printIDs(",") + " received through propagation is found to " + msg + ".");
+            b.setLastBlockEvent("ERROR: propagated Block discarded");
         	BitcoinReporter.reportBlockEvent(
 					Simulation.currentSimulationID,
             		Simulation.currTime,
@@ -177,6 +210,16 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
                     b.getLastBlockEvent(), 
                     b.getValidationDifficulty(),
                     b.getValidationCycles());
+    		
+        	BitcoinReporter.addEvent(
+				Simulation.currentSimulationID,
+				-1,
+				Simulation.currTime,
+				System.currentTimeMillis() - Simulation.sysStartTime,
+				"Discarding Propagated Container due to: " + msg,
+    			node.getID(),
+    			t.getID(),
+    			b.printIDs(";"));
         }
     }
 
@@ -206,9 +249,7 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
                 node.getOperatingDifficulty(),
                 node.getProspectiveCycles());
 
-
         node.completeValidation(node.getMiningPool(), time);
-
 
         //Report the validation event
         BitcoinReporter.reportBlockEvent(
@@ -224,7 +265,12 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
                 b.getValidationCycles());
         
         
+        //Sets the parent of the new block to be the longest tip
+        // FIXME: Should be the longest consistent tip
         b.setParent(node.getStructure().getLongestTip());
+        
+        
+        
         if (!node.getStructure().contains(b)) {
             b.setParent(null);
             //Add block to blockchain
@@ -261,6 +307,64 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
     // HELPER METHODS
     // -----------------------------------------------------------------------
 
+    
+    /** 
+	 * Checks whether a new transaction is valid to be added to the node's pool.
+	 * A transaction is considered valid if it does not conflict with existing
+	 * transactions in the pool or blockchain, based on the node's conflict registry.
+	 *
+	 * @param t the {@linkplain Transaction} to validate
+	 * @return {@code true} if the transaction is valid and can be added to the pool; {@code false} otherwise
+	 */
+    /* private boolean newTxValid(Transaction t) {
+
+    	
+    	if (!conflictFree || !dependenciesPresent) {
+    		String msg = (dependenciesPresent ? " " : " dependencies not satisfied ") +
+    				(conflictFree? " " : " conflicts present");
+    		
+    		BitcoinReporter.addEvent(
+				Simulation.currentSimulationID,
+				-1,
+				Simulation.currTime,
+				System.currentTimeMillis() - Simulation.sysStartTime,
+				"Discarding Tx due to: " + msg,
+    			node.getID(),
+    			t.getID()
+    				);
+    	}
+    	
+    	return (conflictFree && dependenciesPresent); 
+    } */
+
+    
+    private boolean conflictFree(Transaction t) {
+  	long conflict = node.getSim().getConflictRegistry().getMatch((int) t.getID());
+    	
+    	// Some error checking
+    	if (conflict == -2) throw new IllegalStateException("Conflict for transaction " + t.getID() + " uninitialized");
+    	
+    	// Transaction does not conflict with the pool
+    	boolean conflictFree = 
+    			(conflict == -1) // There is no conflict 
+    			||
+    			!(node.getPool().contains(conflict) || node.getStructure().contains(conflict))
+    			; //conflict does not overlap 
+    	
+    	return (conflictFree);
+    }
+    
+    private boolean dependenciesPresent(Transaction t) {
+    	//Transaction dependencies are all present
+    	return(
+    			node.getPool().satisfiesDependenciesOf_Incl_3rdGroup(
+    					t.getID(), 
+    					node.getStructure().getTransactionGroup(),
+    					node.getSim().getDependencyRegistry())
+    			);
+    }
+
+    
 
     /**
 	 * Extracts conflicting transactions from a given block based on the node's

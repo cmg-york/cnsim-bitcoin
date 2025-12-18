@@ -72,6 +72,8 @@ public abstract class DefaultNodeBehavior implements NodeBehaviorStrategy {
 				//It is not mining because it has never OR it has but then abandoned.
 				assert((node.getNextValidationEvent() == null) || ((node.getNextValidationEvent() != null) ? node.getNextValidationEvent().ignoreEvt(): true));
 
+				//Creating here a new block with the current pool
+				//... pool is to be updated with the pool at validation time
 				long interval = node.scheduleValidationEvent(new Block(node.getMiningPool().getTransactions()), time);				
 				node.startMining(interval);
 			} else {
@@ -146,7 +148,14 @@ public abstract class DefaultNodeBehavior implements NodeBehaviorStrategy {
 	}
 
 	
-    
+	/**
+	 * Checks if transaction is valid.
+	 * @param tx The transactions whose validity is 
+	 * @return {@code true} if transaction is valid, {@code false} otherwise
+	 */
+    //protected abstract boolean transactionValid(Transaction tx); 
+	
+	
 	/**
 	 * {@inheritDoc}
 	 */

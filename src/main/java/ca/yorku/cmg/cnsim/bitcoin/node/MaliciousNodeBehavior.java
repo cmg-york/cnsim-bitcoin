@@ -97,12 +97,24 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                 ((b.getParent() == null) ? -1 : b.getParent().getID()),
                 b.getHeight(),
                 b.printIDs(";"),
-                "Target Transaction Appeared - Attack Starts", 
+                "Target Transaction " + targetTxID + " Appeared - Attack Starts", 
                 b.getValidationDifficulty(),
                 b.getValidationCycles());
+        
+        
+        BitcoinReporter.addEvent(
+				Simulation.currentSimulationID,
+				-1,
+        		Simulation.currTime,
+        		System.currentTimeMillis() - Simulation.sysStartTime,
+        		"Attack Starts",
+        		node.getID(),
+        		b.getID(),
+        		"Triggering block: " + b.printIDs(";"));
+        
         isAttackInProgress = true;
         calculateBlockchainSizeAtAttackStart();
-        Debug.p("Starting attack! at time " + Simulation.currTime);
+        //Debug.p("Starting attack! at time " + Simulation.currTime);
 
         // Report attack start event
         BitcoinReporter.reportAttackEvent(
@@ -145,7 +157,7 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                 b.getValidationCycles());
         
         //TODO: why is this below a t and not a b?
-        if (!isAttackInProgress && t.contains(targetTxID)) {
+        if (!isAttackInProgress && node.getMiningPool().contains(targetTxID)) {
             lastBlock = (Block) b.getParent();
             if (!node.getStructure().contains(b)) {
                 //reportBlockEvent(b, b.getContext().blockEvt);
@@ -177,9 +189,19 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                 } else {
                     // Not enough confirmations yet - log and wait
                     int currentConfirmations = getCurrentConfirmations();
-                    Debug.p("Target transaction appeared at height " + targetTransactionBlockHeight +
+                    /* Debug.p("Target transaction appeared at height " + targetTransactionBlockHeight +
                             ", waiting for " + requiredConfirmationsBeforeAttack +
-                            " confirmations. Current: " + currentConfirmations);
+                            " confirmations. Current: " + currentConfirmations); */
+                    BitcoinReporter.addEvent(
+    						Simulation.currentSimulationID,
+    						-1,
+                    		Simulation.currTime,
+                    		System.currentTimeMillis() - Simulation.sysStartTime,
+                    		"Target Transaction Pops Up at " + targetTransactionBlockHeight + " waiting for " + requiredConfirmationsBeforeAttack + " confirmations. Current: " + currentConfirmations,
+                    		node.getID(),
+                    		b.getID(),
+                    		"");
+                    
                 }
             } else { //Does not contain target transaction
                 BitcoinReporter.reportBlockEvent(
@@ -235,9 +257,21 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                         }
                     } else {
                         int currentConfirmations = getCurrentConfirmations();
-                        Debug.p("Received new block at height " + b.getHeight() +
+                        /* Debug.p("Received new block at height " + b.getHeight() +
                                 ", waiting for " + requiredConfirmationsBeforeAttack +
-                                " confirmations. Current: " + currentConfirmations);
+                                " confirmations. Current: " + currentConfirmations); */
+                        BitcoinReporter.addEvent(
+        						Simulation.currentSimulationID,
+        						-1,
+                        		Simulation.currTime,
+                        		System.currentTimeMillis() - Simulation.sysStartTime,
+                        		"Attacker received new block at height " + b.getHeight() +
+                                " waiting for " + requiredConfirmationsBeforeAttack +
+                                " confirmations. Current: " + currentConfirmations,
+                        		node.getID(),
+                        		b.getID(),
+                        		""
+                        		);
                     }
                 } else {
                     BitcoinReporter.reportBlockEvent(
@@ -381,10 +415,23 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                     } else {
                         // Not enough confirmations yet - log and wait
                         int currentConfirmations = getCurrentConfirmations();
-                        Debug.p("Node completed validation of block with target transaction at height " +
+                        /* Debug.p("Node completed validation of block with target transaction at height " +
                                 targetTransactionBlockHeight + ", waiting for " +
                                 requiredConfirmationsBeforeAttack + " confirmations. Current: " +
-                                currentConfirmations);
+                                currentConfirmations); */
+                        BitcoinReporter.addEvent(
+        						Simulation.currentSimulationID,
+        						-1,
+                        		Simulation.currTime,
+                        		System.currentTimeMillis() - Simulation.sysStartTime,
+                        		"Node completed validation of block with target transaction at height " +
+                                        targetTransactionBlockHeight + " waiting for " +
+                                        requiredConfirmationsBeforeAttack + " confirmations. Current: " +
+                                        currentConfirmations,
+                        		node.getID(),
+                        		b.getID(),
+                        		""
+                        		);
                     }
 
                     node.stopMining();
@@ -467,8 +514,19 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
         int revealedChainLength = hiddenChain.size();
         hiddenChain = new ArrayList<Block>();
         node.removeFromPool(targetTxID);
-        Debug.p("Chain reveal! at time " + Simulation.currTime);
-
+        //Debug.p("Chain reveal! at time " + Simulation.currTime);
+        BitcoinReporter.addEvent(
+				Simulation.currentSimulationID,
+				-1,
+        		Simulation.currTime,
+        		System.currentTimeMillis() - Simulation.sysStartTime,
+        		"Chain Reveal",
+        		node.getID(),
+        		-1,
+        		""
+        		);
+        
+        
         // Report chain reveal event
         BitcoinReporter.reportAttackEvent(
                 node.getSim().getSimID(),
