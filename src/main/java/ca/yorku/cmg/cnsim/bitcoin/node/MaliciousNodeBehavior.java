@@ -109,8 +109,7 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
         		System.currentTimeMillis() - Simulation.sysStartTime,
         		"Attack Starts",
         		node.getID(),
-        		b.getID(),
-        		"Triggering block: " + b.printIDs(";"));
+        		b.getID());
         
         isAttackInProgress = true;
         calculateBlockchainSizeAtAttackStart();
@@ -156,8 +155,8 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                 b.getValidationDifficulty(),
                 b.getValidationCycles());
         
-        //TODO: why is this below a t and not a b?
-        if (!isAttackInProgress && node.getMiningPool().contains(targetTxID)) {
+        // Check if the received block contains the target transaction
+        if (!isAttackInProgress && t.contains(targetTxID)) {
             lastBlock = (Block) b.getParent();
             if (!node.getStructure().contains(b)) {
                 //reportBlockEvent(b, b.getContext().blockEvt);
@@ -199,8 +198,7 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                     		System.currentTimeMillis() - Simulation.sysStartTime,
                     		"Target Transaction Pops Up at " + targetTransactionBlockHeight + " waiting for " + requiredConfirmationsBeforeAttack + " confirmations. Current: " + currentConfirmations,
                     		node.getID(),
-                    		b.getID(),
-                    		"");
+                    		b.getID());
                     
                 }
             } else { //Does not contain target transaction
@@ -269,9 +267,7 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                                 " waiting for " + requiredConfirmationsBeforeAttack +
                                 " confirmations. Current: " + currentConfirmations,
                         		node.getID(),
-                        		b.getID(),
-                        		""
-                        		);
+                        		b.getID());
                     }
                 } else {
                     BitcoinReporter.reportBlockEvent(
@@ -429,9 +425,7 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                                         requiredConfirmationsBeforeAttack + " confirmations. Current: " +
                                         currentConfirmations,
                         		node.getID(),
-                        		b.getID(),
-                        		""
-                        		);
+                        		b.getID());
                     }
 
                     node.stopMining();
@@ -522,9 +516,7 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
         		System.currentTimeMillis() - Simulation.sysStartTime,
         		"Chain Reveal",
         		node.getID(),
-        		-1,
-        		""
-        		);
+        		-1);
         
         
         // Report chain reveal event
@@ -668,7 +660,9 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
         }
 
         int currentHeight = longestTip.getHeight();
-        int confirmations = currentHeight - targetTransactionBlockHeight;
+        // Add 1 because being in the block itself counts as 1 confirmation
+        // Height 5 with TX at height 5 = 1 confirmation, height 6 = 2 confirmations, etc.
+        int confirmations = currentHeight - targetTransactionBlockHeight + 1;
         return Math.max(0, confirmations);
     }
 

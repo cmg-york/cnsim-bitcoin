@@ -238,7 +238,8 @@ public class Blockchain implements IStructure {
 	 */
 	private void addBlock(Block b) {
 		blockchain.add(b);
-		allTx.addGroup(b);
+		// TODO: The method addGroup does not exist in the engine
+		// allTx.addGroup(b);
 	}
 	
 
@@ -441,8 +442,7 @@ public class Blockchain implements IStructure {
                 		System.currentTimeMillis() - Simulation.sysStartTime,
                 		"ERROR: Unexpected block discard",
                 		-1,
-                		block.getID(),
-                		block.printIDs(";"));
+                		block.getID());
 				return true; // Found the block in the parental structure
 				}
 
@@ -456,7 +456,10 @@ public class Blockchain implements IStructure {
 	
 
 	public boolean satisfiesDependencies(TransactionGroup g, TxDependencyRegistry reg) {
-		return(allTx.satisfiesDependenciesOf_InclSelf(g, reg));
+		// TODO: The method satisfiesDependenciesOf_InclSelf does not exist in the engine
+		// Temporarily returning true until the method is implemented
+		return true;
+		// return(allTx.satisfiesDependenciesOf_InclSelf(g, reg));
 	}
 
 	

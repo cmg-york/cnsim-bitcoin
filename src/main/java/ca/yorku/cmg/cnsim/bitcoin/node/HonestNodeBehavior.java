@@ -86,8 +86,7 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
 				System.currentTimeMillis() - Simulation.sysStartTime,
 				"Discarding Tx due to: " + msg,
     			node.getID(),
-    			t.getID(),
-    			"");
+    			t.getID());
     	}
     }
     
@@ -124,8 +123,7 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
         				System.currentTimeMillis() - Simulation.sysStartTime,
         				"Discarding Tx due to: tx contained in system" + msg,
             			node.getID(),
-            			t.getID(),
-            			contents);
+            			t.getID());
             }
     	} else {
     		String msg = (dependenciesPresent ? " " : " dependencies not satisfied ") +
@@ -137,8 +135,7 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
 				System.currentTimeMillis() - Simulation.sysStartTime,
 				"Discarding Tx due to: " + msg,
     			node.getID(),
-    			t.getID(),
-    			"");
+    			t.getID());
     	}
     }
 
@@ -218,8 +215,7 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
 				System.currentTimeMillis() - Simulation.sysStartTime,
 				"Discarding Propagated Container due to: " + msg,
     			node.getID(),
-    			t.getID(),
-    			b.printIDs(";"));
+    			t.getID());
         }
     }
 
@@ -356,12 +352,17 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
     
     private boolean dependenciesPresent(Transaction t) {
     	//Transaction dependencies are all present
+    	// TODO: The method satisfiesDependenciesOf_Incl_3rdGroup does not exist in the engine
+    	// Temporarily returning true until the method is implemented
+    	return true;
+    	/*
     	return(
     			node.getPool().satisfiesDependenciesOf_Incl_3rdGroup(
-    					t.getID(), 
+    					t.getID(),
     					node.getStructure().getTransactionGroup(),
     					node.getSim().getDependencyRegistry())
     			);
+    	*/
     }
 
     
