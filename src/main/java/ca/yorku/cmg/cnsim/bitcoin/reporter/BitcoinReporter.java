@@ -36,35 +36,47 @@ public class BitcoinReporter extends Reporter {
 	
     /** Log of blockchain structure and orphaned blocks */
 	protected static ArrayList<String> structureLog = new ArrayList<String>();
-	
+
+	/** Log of attack-related events */
+	protected static ArrayList<String> attackLog = new ArrayList<String>();
+
 	 /** Writer used for flushing block logs to file */
 	protected static FileWriter blockWriter;
 
     /** Flag indicating whether block events should be reported */
 	protected static boolean reportBlockEvents;
-	
+
     /** Flag indicating whether blockchain structure events should be reported */
 	protected static boolean reportStructureEvents;
+
+	/** Flag indicating whether attack events should be reported */
+	protected static boolean reportAttackEvents;
 	
 	
-    /** Static initializer to add CSV headers for block and structure logs */
+    /** Static initializer to add CSV headers for block, structure, and attack logs */
 	static {
 		blockLog.add("SimID, SimTime, SysTime, NodeID, "
 				+ "BlockID, ParentID, Height, BlockContent,"
 				+ "EventType, Difficulty, Cycles");
 		structureLog.add("SimID, SimTime, SysTime, NodeID, BlockID, ParentBlockID, Height, Content, Place");
+		attackLog.add("SimID, SimTime, SysTime, NodeID, EventType, TransactionID, BlockID, BlockHeight, HiddenChainLength, PublicChainLength, Description");
 	}
 	
 	 /**
      * Initializes reporting settings from simulation configuration properties.
      * <p>
-     * Sets {@code reportBlockEvents} and {@code reportStructureEvents} based
-     * on the configuration keys {@code reporter.reportBlockEvents} and
-     * {@code reporter.reportStructureEvents}, respectively.
+     * Sets {@code reportBlockEvents}, {@code reportStructureEvents}, and {@code reportAttackEvents} based
+     * on the configuration keys {@code reporter.reportBlockEvents}, {@code reporter.reportStructureEvents},
+     * and {@code reporter.reportAttackEvents}, respectively.
      */
 	public static void initialize() {
 		BitcoinReporter.reportBlockEvents(Config.getPropertyBoolean("reporter.reportBlockEvents"));
 		BitcoinReporter.reportStructureEvents(Config.getPropertyBoolean("reporter.reportStructureEvents"));
+		if (Config.hasProperty("reporter.reportAttackEvents")) {
+			BitcoinReporter.reportAttackEvents(Config.getPropertyBoolean("reporter.reportAttackEvents"));
+		} else {
+			BitcoinReporter.reportAttackEvents(false);
+		}
 	}
 	
 	
@@ -129,12 +141,56 @@ public class BitcoinReporter extends Reporter {
 					);
 	}
 
+	/**
+	 * Reports an attack-related event to the attack log.
+	 * <p>
+	 * This method logs significant attack events such as:
+	 * <ul>
+	 *   <li>Target transaction arrival</li>
+	 *   <li>Attack initiation</li>
+	 *   <li>Hidden chain block mining</li>
+	 *   <li>Chain revelation</li>
+	 * </ul>
+	 *
+	 * @param simId simulation ID
+	 * @param simTime simulation time when event occurred
+	 * @param sysTime system time when event occurred
+	 * @param nodeId ID of the node involved in the event
+	 * @param eventType type of attack event (e.g., "Target TX Arrival", "Attack Start", "Chain Reveal")
+	 * @param txId transaction ID (if applicable, -1 otherwise)
+	 * @param blockId block ID (if applicable, -1 otherwise)
+	 * @param blockHeight height of the block in the chain (if applicable, -1 otherwise)
+	 * @param hiddenChainLength current length of the attacker's hidden chain
+	 * @param publicChainLength current length of the public chain
+	 * @param description additional description of the event
+	 */
+	public static void reportAttackEvent(int simId, long simTime, long sysTime, int nodeId,
+	                                      String eventType, int txId, int blockId, int blockHeight,
+	                                      int hiddenChainLength, int publicChainLength, String description) {
+		if (BitcoinReporter.reportsAttackEvents()) {
+			attackLog.add(
+					simId + "," +
+					simTime + "," +
+					sysTime + "," +
+					nodeId + "," +
+					eventType + "," +
+					txId + "," +
+					blockId + "," +
+					blockHeight + "," +
+					hiddenChainLength + "," +
+					publicChainLength + "," +
+					description
+			);
+		}
+	}
+
     /**
-     * Flushes all custom Bitcoin reports (block events and structure) to files.
+     * Flushes all custom Bitcoin reports (block events, structure, and attack events) to files.
      */
 	public static void flushCustomReports() {
         BitcoinReporter.flushBlockReport();
         BitcoinReporter.flushStructReport();
+        BitcoinReporter.flushAttackReport();
 	}
 	
 	public static final void flushAll() {
@@ -166,7 +222,7 @@ public class BitcoinReporter extends Reporter {
 
 	/**
 	 * Save Blockchain report to file. File name is "StructureLog - [Simulation Date Time].csv"
-	 * 
+	 *
 	 */
 	public static void flushStructReport() {
 		if (BitcoinReporter.reportsStructureEvents()) {
@@ -183,7 +239,26 @@ public class BitcoinReporter extends Reporter {
 		}
 	}
 
-	
+	/**
+	 * Save Attack report to file. File name is "AttackLog - [Simulation Date Time].csv"
+	 *
+	 */
+	public static void flushAttackReport() {
+		if (BitcoinReporter.reportsAttackEvents()) {
+			FileWriter writer;
+			try {
+				writer = new FileWriter(Reporter.path + "AttackLog - " + Reporter.runId + ".csv");
+				for(String str: attackLog) {
+					writer.write(str + System.lineSeparator());
+				}
+				writer.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
+
 	// -----------------------------------------------
 	// ENABLING / DISABLING REPORT TYPES
 	// -----------------------------------------------
@@ -207,6 +282,15 @@ public class BitcoinReporter extends Reporter {
 		BitcoinReporter.reportStructureEvents = reportStructureEvents;
 	}
 
+	/**
+	 * Sets whether attack events should be logged.
+	 *
+	 * @param reportAttackEvents {@code true} to enable attack event reporting, {@code false} to disable
+	 */
+	public static void reportAttackEvents(boolean reportAttackEvents) {
+		BitcoinReporter.reportAttackEvents = reportAttackEvents;
+	}
+
     /**
      * Returns whether block-level events are being logged.
      *
@@ -224,6 +308,15 @@ public class BitcoinReporter extends Reporter {
     public static boolean reportsStructureEvents() {
         return BitcoinReporter.reportStructureEvents;
     }
+
+	/**
+	 * Returns whether attack events are being logged.
+	 *
+	 * @return {@code true} if attack event reporting is enabled, {@code false} otherwise
+	 */
+	public static boolean reportsAttackEvents() {
+		return BitcoinReporter.reportAttackEvents;
+	}
 	
 	
 }

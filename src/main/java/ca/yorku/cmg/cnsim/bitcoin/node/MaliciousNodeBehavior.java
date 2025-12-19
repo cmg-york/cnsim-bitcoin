@@ -3,38 +3,76 @@ import ca.yorku.cmg.cnsim.bitcoin.reporter.BitcoinReporter;
 import ca.yorku.cmg.cnsim.bitcoin.structure.Block;
 import ca.yorku.cmg.cnsim.engine.Debug;
 import ca.yorku.cmg.cnsim.engine.Simulation;
+import ca.yorku.cmg.cnsim.engine.config.Config;
 import ca.yorku.cmg.cnsim.engine.transaction.ITxContainer;
 import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
 
 import java.util.ArrayList;
 
 public class MaliciousNodeBehavior extends DefaultNodeBehavior {
-    //TODO: Make these parameterizable
-	//private static final int MIN_CHAIN_LENGTH = 6;
-	private static final int MIN_CHAIN_LENGTH = 2;
-    private static final int MAX_CHAIN_LENGTH = 15;
+    /**
+     * Minimum number of blocks the attacker must mine on the hidden chain before attempting to reveal it.
+     * The attacker will only reveal the hidden chain if it is at least this many blocks longer than when the attack started.
+     * Configured via {@code attack.minChainLength} property.
+     */
+    private int minChainLength;
+
+    /**
+     * Maximum number of blocks the attacker will mine on the hidden chain before revealing regardless of public chain status.
+     * This prevents the attacker from falling too far behind if the public chain is growing faster.
+     * Once the hidden chain reaches this length, it will be revealed even if not ahead of the public chain.
+     * Configured via {@code attack.maxChainLength} property.
+     */
+    private int maxChainLength;
 
     private ArrayList<Block> hiddenChain=new ArrayList<Block>();
     private Transaction targetTransaction;
 	private int targetTxID;
-	
+
     private boolean isAttackInProgress = false;
-    private BitcoinNode node;
+    // Note: node field is inherited from DefaultNodeBehavior
     private HonestNodeBehavior honestBehavior;
     private int blockchainSizeAtAttackStart;
     private Block lastBlock;
     private int publicChainGrowthSinceAttack;
 
+    /** Number of block confirmations required before starting the attack (0 = immediate). */
+    private int requiredConfirmationsBeforeAttack = 0;
+
+    /** Height of the block containing the target transaction (-1 if not yet found). */
+    private int targetTransactionBlockHeight = -1;
+
 
     
     /**
      * Constructor. Creates also a shadow honest behavior object.
+     * Reads chain length parameters from configuration.
      * @param node The node which has the behavior.
      */
     public MaliciousNodeBehavior(BitcoinNode node) {
         this.isAttackInProgress = false;
         this.node = node;
         this.honestBehavior = new HonestNodeBehavior(node);
+
+        // Read chain length parameters from configuration with default values
+        try {
+            this.minChainLength = Config.getPropertyInt("attack.minChainLength");
+        } catch (Exception e) {
+            this.minChainLength = 2; // Default value
+        }
+
+        try {
+            this.maxChainLength = Config.getPropertyInt("attack.maxChainLength");
+        } catch (Exception e) {
+            this.maxChainLength = 15; // Default value
+        }
+
+        // Read required confirmations before attack from configuration (default: 0 = immediate)
+        try {
+            this.requiredConfirmationsBeforeAttack = Config.getPropertyInt("attack.requiredConfirmations");
+        } catch (Exception e) {
+            this.requiredConfirmationsBeforeAttack = 0; // Default value: immediate attack
+        }
     }
 
 
@@ -59,12 +97,39 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                 ((b.getParent() == null) ? -1 : b.getParent().getID()),
                 b.getHeight(),
                 b.printIDs(";"),
-                "Target Transaction Appeared - Attack Starts", 
+                "Target Transaction " + targetTxID + " Appeared - Attack Starts", 
                 b.getValidationDifficulty(),
                 b.getValidationCycles());
+        
+        
+        BitcoinReporter.addEvent(
+				Simulation.currentSimulationID,
+				-1,
+        		Simulation.currTime,
+        		System.currentTimeMillis() - Simulation.sysStartTime,
+        		"Attack Starts",
+        		node.getID(),
+        		b.getID(),
+        		"Triggering block: " + b.printIDs(";"));
+        
         isAttackInProgress = true;
         calculateBlockchainSizeAtAttackStart();
-        Debug.p("Starting attack! at time " + Simulation.currTime);
+        //Debug.p("Starting attack! at time " + Simulation.currTime);
+
+        // Report attack start event
+        BitcoinReporter.reportAttackEvent(
+                node.getSim().getSimID(),
+                Simulation.currTime,
+                System.currentTimeMillis(),
+                node.getID(),
+                "Attack Start",
+                targetTxID,
+                b.getID(),
+                targetTransactionBlockHeight,
+                0, // hidden chain length at start
+                node.getStructure().getBlockchainHeight(),
+                "Attack initiated after " + requiredConfirmationsBeforeAttack + " confirmations"
+        );
     }
 
 
@@ -92,12 +157,52 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                 b.getValidationCycles());
         
         //TODO: why is this below a t and not a b?
-        if (!isAttackInProgress && t.contains(targetTxID)) {
+        if (!isAttackInProgress && node.getMiningPool().contains(targetTxID)) {
             lastBlock = (Block) b.getParent();
             if (!node.getStructure().contains(b)) {
                 //reportBlockEvent(b, b.getContext().blockEvt);
                 handleNewBlockReceptionInAttack(b);
-                startAttack(b);
+
+                // Record the transaction block height if not already set
+                if (targetTransactionBlockHeight == -1) {
+                    targetTransactionBlockHeight = b.getHeight();
+
+                    // Report target transaction arrival
+                    BitcoinReporter.reportAttackEvent(
+                            node.getSim().getSimID(),
+                            Simulation.currTime,
+                            System.currentTimeMillis(),
+                            node.getID(),
+                            "Target TX Arrival",
+                            targetTxID,
+                            b.getID(),
+                            b.getHeight(),
+                            0,
+                            node.getStructure().getBlockchainHeight(),
+                            "Target transaction " + targetTxID + " appeared in block " + b.getID()
+                    );
+                }
+
+                // Check if we have enough confirmations before starting attack
+                if (hasEnoughConfirmations()) {
+                    startAttack(b);
+                } else {
+                    // Not enough confirmations yet - log and wait
+                    int currentConfirmations = getCurrentConfirmations();
+                    /* Debug.p("Target transaction appeared at height " + targetTransactionBlockHeight +
+                            ", waiting for " + requiredConfirmationsBeforeAttack +
+                            " confirmations. Current: " + currentConfirmations); */
+                    BitcoinReporter.addEvent(
+    						Simulation.currentSimulationID,
+    						-1,
+                    		Simulation.currTime,
+                    		System.currentTimeMillis() - Simulation.sysStartTime,
+                    		"Target Transaction Pops Up at " + targetTransactionBlockHeight + " waiting for " + requiredConfirmationsBeforeAttack + " confirmations. Current: " + currentConfirmations,
+                    		node.getID(),
+                    		b.getID(),
+                    		"");
+                    
+                }
             } else { //Does not contain target transaction
                 BitcoinReporter.reportBlockEvent(
 						Simulation.currentSimulationID,
@@ -107,7 +212,7 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                         b.getID(),
                         ((b.getParent() == null) ? -1 : b.getParent().getID()),b.getHeight(),
                         b.printIDs(";"),
-                        "Propagated Block Discarded (already exists)", 
+                        "Propagated Block Discarded (already exists)",
                         b.getValidationDifficulty(),
                         b.getValidationCycles());
                 //reportBlockEvent(b, "Propagated Block Discarded");
@@ -127,7 +232,7 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                         b.getID(),
                         ((b.getParent() == null) ? -1 : b.getParent().getID()),b.getHeight(),
                         b.printIDs(";"),
-                        "Propagated Block Discarded (already exists)", 
+                        "Propagated Block Discarded (already exists)",
                         b.getValidationDifficulty(),
                         b.getValidationCycles());
                 //reportBlockEvent(b, "Propagated Block Discarded");
@@ -135,24 +240,72 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
             checkAndRevealHiddenChain(b);
         }
         else { //attack not in progress
-            if (!node.getStructure().contains(b)) {
-                //reportBlockEvent(b, b.getContext().blockEvt);
-                honestBehavior.handleNewBlockReception(b);
-            } else {
-            	//reportBlockEvent(b, "Propagated Block Discarded");
-                BitcoinReporter.reportBlockEvent(
-						Simulation.currentSimulationID,
-                		Simulation.currTime,
-                		System.currentTimeMillis() - Simulation.sysStartTime,
-                		b.getCurrentNodeID(),
-                        b.getID(),
-                        ((b.getParent() == null) ? -1 : b.getParent().getID()),b.getHeight(),
-                        b.printIDs(";"),
-                        "Propagated Block Discarded (already exists)", 
-                        b.getValidationDifficulty(),
-                        b.getValidationCycles());
-            }
+            // Check if we're waiting for confirmations and now have enough
+            if (targetTransactionBlockHeight != -1 && !hasEnoughConfirmations()) {
+                // We've seen the target transaction but don't have enough confirmations yet
+                // Check if this new block gives us enough confirmations
+                if (!node.getStructure().contains(b)) {
+                    honestBehavior.handleNewBlockReception(b);
 
+                    // After adding the block, check again if we have enough confirmations
+                    if (hasEnoughConfirmations()) {
+                        // Find the block containing the target transaction and start the attack
+                        Block targetBlock = findBlockContainingTransaction(targetTxID);
+                        if (targetBlock != null) {
+                            lastBlock = (Block) targetBlock.getParent();
+                            startAttack(targetBlock);
+                        }
+                    } else {
+                        int currentConfirmations = getCurrentConfirmations();
+                        /* Debug.p("Received new block at height " + b.getHeight() +
+                                ", waiting for " + requiredConfirmationsBeforeAttack +
+                                " confirmations. Current: " + currentConfirmations); */
+                        BitcoinReporter.addEvent(
+        						Simulation.currentSimulationID,
+        						-1,
+                        		Simulation.currTime,
+                        		System.currentTimeMillis() - Simulation.sysStartTime,
+                        		"Attacker received new block at height " + b.getHeight() +
+                                " waiting for " + requiredConfirmationsBeforeAttack +
+                                " confirmations. Current: " + currentConfirmations,
+                        		node.getID(),
+                        		b.getID(),
+                        		""
+                        		);
+                    }
+                } else {
+                    BitcoinReporter.reportBlockEvent(
+                            Simulation.currentSimulationID,
+                            Simulation.currTime,
+                            System.currentTimeMillis() - Simulation.sysStartTime,
+                            b.getCurrentNodeID(),
+                            b.getID(),
+                            ((b.getParent() == null) ? -1 : b.getParent().getID()),b.getHeight(),
+                            b.printIDs(";"),
+                            "Propagated Block Discarded (already exists)",
+                            b.getValidationDifficulty(),
+                            b.getValidationCycles());
+                }
+            } else {
+                // Normal honest behavior (no target transaction yet, or confirmations already met)
+                if (!node.getStructure().contains(b)) {
+                    //reportBlockEvent(b, b.getContext().blockEvt);
+                    honestBehavior.handleNewBlockReception(b);
+                } else {
+                    //reportBlockEvent(b, "Propagated Block Discarded");
+                    BitcoinReporter.reportBlockEvent(
+                            Simulation.currentSimulationID,
+                            Simulation.currTime,
+                            System.currentTimeMillis() - Simulation.sysStartTime,
+                            b.getCurrentNodeID(),
+                            b.getID(),
+                            ((b.getParent() == null) ? -1 : b.getParent().getID()),b.getHeight(),
+                            b.printIDs(";"),
+                            "Propagated Block Discarded (already exists)",
+                            b.getValidationDifficulty(),
+                            b.getValidationCycles());
+                }
+            }
         }
     }
 
@@ -230,7 +383,7 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
             node.completeValidation(node.getMiningPool(), time);
 
 
-            
+
             if(b.contains(targetTxID)){
                 if (!node.getStructure().contains(b)) {
                     //Report validation
@@ -246,11 +399,41 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                             "Node Completes Validation",
                             b.getValidationDifficulty(),
                             b.getValidationCycles());
-                    
-                    startAttack(b);
+
                     node.getStructure().addToStructure(b);
                     node.broadcastContainer(b, time);
                     lastBlock = (Block) b.getParent();
+
+                    // Record the transaction block height if not already set
+                    if (targetTransactionBlockHeight == -1) {
+                        targetTransactionBlockHeight = b.getHeight();
+                    }
+
+                    // Check if we have enough confirmations before starting attack
+                    if (hasEnoughConfirmations()) {
+                        startAttack(b);
+                    } else {
+                        // Not enough confirmations yet - log and wait
+                        int currentConfirmations = getCurrentConfirmations();
+                        /* Debug.p("Node completed validation of block with target transaction at height " +
+                                targetTransactionBlockHeight + ", waiting for " +
+                                requiredConfirmationsBeforeAttack + " confirmations. Current: " +
+                                currentConfirmations); */
+                        BitcoinReporter.addEvent(
+        						Simulation.currentSimulationID,
+        						-1,
+                        		Simulation.currTime,
+                        		System.currentTimeMillis() - Simulation.sysStartTime,
+                        		"Node completed validation of block with target transaction at height " +
+                                        targetTransactionBlockHeight + " waiting for " +
+                                        requiredConfirmationsBeforeAttack + " confirmations. Current: " +
+                                        currentConfirmations,
+                        		node.getID(),
+                        		b.getID(),
+                        		""
+                        		);
+                    }
+
                     node.stopMining();
                     node.resetNextValidationEvent();
                     reconstructMiningPool();
@@ -328,9 +511,36 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
             node.broadcastContainer(b, Simulation.currTime);
         }
         isAttackInProgress = false;
+        int revealedChainLength = hiddenChain.size();
         hiddenChain = new ArrayList<Block>();
         node.removeFromPool(targetTxID);
-        Debug.p("Chain reveal! at time " + Simulation.currTime);
+        //Debug.p("Chain reveal! at time " + Simulation.currTime);
+        BitcoinReporter.addEvent(
+				Simulation.currentSimulationID,
+				-1,
+        		Simulation.currTime,
+        		System.currentTimeMillis() - Simulation.sysStartTime,
+        		"Chain Reveal",
+        		node.getID(),
+        		-1,
+        		""
+        		);
+        
+        
+        // Report chain reveal event
+        BitcoinReporter.reportAttackEvent(
+                node.getSim().getSimID(),
+                Simulation.currTime,
+                System.currentTimeMillis(),
+                node.getID(),
+                "Chain Reveal",
+                targetTxID,
+                -1,
+                targetTransactionBlockHeight,
+                revealedChainLength,
+                node.getStructure().getBlockchainHeight(),
+                "Revealed hidden chain of length " + revealedChainLength
+        );
     }
 
     
@@ -363,6 +573,28 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
         this.targetTxID = targetTxID;
     }
 
+    /**
+     * Sets the number of block confirmations required before starting the attack.
+     * A confirmation means a new block has been added on top of the block containing the target transaction.
+     *
+     * @param confirmations the number of confirmations (0 = start attack immediately when transaction appears)
+     */
+    public void setRequiredConfirmationsBeforeAttack(int confirmations) {
+        if (confirmations < 0) {
+            throw new IllegalArgumentException("Required confirmations cannot be negative");
+        }
+        this.requiredConfirmationsBeforeAttack = confirmations;
+    }
+
+    /**
+     * Gets the number of block confirmations required before starting the attack.
+     *
+     * @return the required confirmations
+     */
+    public int getRequiredConfirmationsBeforeAttack() {
+        return requiredConfirmationsBeforeAttack;
+    }
+
     
     
     private void manageMiningPostValidation() {
@@ -391,8 +623,8 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
     }
 
     private boolean shouldRevealHiddenChain() {
-        return (hiddenChain.size() > publicChainGrowthSinceAttack && publicChainGrowthSinceAttack > MIN_CHAIN_LENGTH)
-                || publicChainGrowthSinceAttack > MAX_CHAIN_LENGTH;
+        return (hiddenChain.size() > publicChainGrowthSinceAttack && publicChainGrowthSinceAttack > minChainLength)
+                || publicChainGrowthSinceAttack > maxChainLength;
     }
 
     private void checkAndRevealHiddenChain(Block b) {
@@ -406,11 +638,82 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                     b.getID(),
                     ((b.getParent() == null) ? -1 : b.getParent().getID()),b.getHeight(),
                     b.printIDs(";"),
-                    "Reveal of hidden chain starts here.", 
+                    "Reveal of hidden chain starts here.",
                     b.getValidationDifficulty(),
                     b.getValidationCycles());
             revealHiddenChain();
         }
+    }
+
+    /**
+     * Calculates the current number of confirmations for the target transaction.
+     * A transaction has N confirmations when there are N blocks built on top of
+     * the block containing the transaction.
+     *
+     * @return the number of confirmations, or -1 if transaction not found or no blockchain structure
+     */
+    private int getCurrentConfirmations() {
+        if (targetTransactionBlockHeight == -1) {
+            // Transaction block height not yet determined
+            return -1;
+        }
+
+        if (node.getStructure() == null) {
+            return -1;
+        }
+
+        Block longestTip = node.getStructure().getLongestTip();
+        if (longestTip == null) {
+            return -1;
+        }
+
+        int currentHeight = longestTip.getHeight();
+        int confirmations = currentHeight - targetTransactionBlockHeight;
+        return Math.max(0, confirmations);
+    }
+
+    /**
+     * Checks if enough confirmations have occurred to start the attack.
+     *
+     * @return true if attack should start, false if waiting for more confirmations
+     */
+    private boolean hasEnoughConfirmations() {
+        if (requiredConfirmationsBeforeAttack == 0) {
+            return true; // Immediate attack
+        }
+
+        int currentConfirmations = getCurrentConfirmations();
+        return currentConfirmations >= requiredConfirmationsBeforeAttack;
+    }
+
+    /**
+     * Finds and returns the block containing the target transaction.
+     * Since Blockchain doesn't expose getBlockchain(), we traverse from the longest tip
+     * back to genesis to find the transaction.
+     *
+     * @param targetTxID the transaction ID to search for
+     * @return the block containing the transaction, or null if not found
+     */
+    private Block findBlockContainingTransaction(int targetTxID) {
+        if (node.getStructure() == null) {
+            return null;
+        }
+
+        Block longestTip = node.getStructure().getLongestTip();
+        if (longestTip == null) {
+            return null;
+        }
+
+        // Traverse from tip to genesis
+        Block current = longestTip;
+        while (current != null) {
+            if (current.contains(targetTxID)) {
+                return current;
+            }
+            current = (Block) current.getParent();
+        }
+
+        return null;
     }
 }
 

@@ -7,9 +7,11 @@ import ca.yorku.cmg.cnsim.engine.Simulation;
 import ca.yorku.cmg.cnsim.engine.reporter.Reporter;
 import ca.yorku.cmg.cnsim.engine.transaction.ITxContainer;
 import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
-import ca.yorku.cmg.cnsim.engine.transaction.TxConflictRegistry;
+import ca.yorku.cmg.cnsim.engine.transaction.TransactionGroup;
+import ca.yorku.cmg.cnsim.engine.transaction.TxDependencyRegistry;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collections;
 
 /**
@@ -43,6 +45,8 @@ public class Blockchain implements IStructure {
     /** List of tips, i.e., blocks that are at the end of each chain, and no other block points them as parents. */
 	ArrayList<Block> tips = new ArrayList<Block>();
 	
+	/** A transaction group representing all transactions in the chain */
+	TransactionGroup allTx = new TransactionGroup();
 	
 	
 	//----------------------------------------------------------------
@@ -62,7 +66,6 @@ public class Blockchain implements IStructure {
 	public void addToStructure(Block b) {
 		if (b.hasParent()) {
 			// Typically it has parent when it is coming from the orphans list or propagation.
-			assert(b.getParent() != null);
 			placeBlockInChain(b);
 		} else {
 			// Has no parent when it is coming from own validation.
@@ -95,7 +98,8 @@ public class Blockchain implements IStructure {
 				//No overlaps found good to append.
 
 				b.setHeight(parent.getHeight() + 1);
-				blockchain.add(b);
+				//blockchain.add(b);
+				addBlock(b);
 
 				
 				// Tip management
@@ -139,15 +143,17 @@ public class Blockchain implements IStructure {
 
 
 	/**
-	 * Pushes a newly validated {@linkplain Block block} without parents 
-	 * (e.g., just validated by the node) to blockchain.
+	 * Pushes a {@linkplain Block block} without parents to blockchain.
+	 * 
+	 * This is mostly due to the block being just minted by the same node that places it,
+	 * or the node is child of the genesis block.  
+	 * 
 	 * It gets the tallest non-overlapping tip and appends the block there 
 	 * while replacing the block's parent with the block in the tips list.
 	 * While a block always contains a parent while being validated, we assume
 	 * here that the parent is selected after validation. This normally does not 
 	 * cause any violence to the consensus proceedings, given that such parent is 
 	 * guaranteed to exist (mining pool is always valid and non-overlapping). 
-	 * In case it does, an error is printed in the Log file.
 	 *
 	 * If the chain is empty, make the block a genesis block with null as a parent.
 	 *
@@ -165,8 +171,8 @@ public class Blockchain implements IStructure {
 				//Prepare and append to structure
 				b.setParent(par);
 				b.setHeight(par.getHeight() + 1);
-				blockchain.add(b);
-
+				//blockchain.add(b);
+				addBlock(b);
 
 				tips.add(b);
 				tips.remove(((Block) b).getParent());
@@ -188,7 +194,20 @@ public class Blockchain implements IStructure {
 				processOrphans();
 
 			} else {
-				//Do nothing, block should be discarded.
+				//Blockchain is not empty, but you could not find non conflicting path to the root.
+				//Impossible except in the case where the block is a propagated genesis child.
+				
+				//It is a genesis block
+				/* 
+				b.setParent(null); // it was already but for clarity
+				b.setHeight(1);
+				addBlock(b);
+								
+				tips.add(b);
+
+				processOrphans();
+			*/
+				//Log this unusual case
 				BitcoinReporter.reportBlockEvent(
 						Simulation.currentSimulationID,
 	            		Simulation.currTime,
@@ -197,7 +216,7 @@ public class Blockchain implements IStructure {
 						b.getID(),((b.getParent() == null) ? -1 : b.getParent().getID()),
 						b.getHeight(),
 						b.printIDs(";"),
-						"Discarding due to chain overlap", 
+						"[Propagated genesis child?] Did nothing.", 
 	                    b.getValidationDifficulty(),
 	                    b.getValidationCycles());				
 			}
@@ -205,14 +224,23 @@ public class Blockchain implements IStructure {
 			//It is a genesis block
 			b.setParent(null); // it was already but for clarity
 			b.setHeight(1);
-			blockchain.add(b);
-	
+			addBlock(b);
+			
 			tips.add(b);
 
 			processOrphans();
 		}
 	}
 
+	/**
+	 * Adds a {@linkplain Block} to the blockchain and updates the allTx BitSet.
+	 * @param b The {@linkplain Block} to be added.
+	 */
+	private void addBlock(Block b) {
+		blockchain.add(b);
+		allTx.addGroup(b);
+	}
+	
 
 	//----------------------------------------------------------------
 	// ORPHAN MANAGEMENT
@@ -315,6 +343,8 @@ public class Blockchain implements IStructure {
 	}
 	
 	
+	
+	
 	//----------------------------------------------------------------
 	// QUERYING
 	//----------------------------------------------------------------
@@ -358,17 +388,23 @@ public class Blockchain implements IStructure {
 
 	
 	/**
-	 * Checks if a {@linkplain Transaction} is contained (anywhere) in the blockchain. Likely to be used in the gossip stage.
+	 * Checks if a {@linkplain Transaction} is contained (anywhere) in the blockchain. Likely to be used in the gossip stage. Anywhere here includes stale blocks, but not orphan blocks.
 	 *
 	 * @param txID The {@linkplain Transaction} ID to be checked.
 	 * @return Return {@code true} if it is contained {@code false} otherwise.
 	 */
 	public boolean contains(long txID) {
+		//FIXME: Replace this with an operation on allTx  
 		boolean found = false;
 		for (Block b : blockchain) {
+			if (b.contains(txID)) {
+				found = true;
+			}
+			/*
 			for (Transaction r:b.getTransactions()) {
 				if (r.getID() == txID) found = true;
 			}
+			*/
 		}
 		return found;
 	}
@@ -381,7 +417,7 @@ public class Blockchain implements IStructure {
 	 */
 	public boolean contains(Block block) {
 		// Start checking from the parent of the block passed
-		int counter=1;
+		int counter = 1;
 		if (block.getParent() == null) {
 			return false;
 		}
@@ -398,6 +434,15 @@ public class Blockchain implements IStructure {
 			if (found) {
 				// This not supposed to ever be happening. 
 				Reporter.addErrorEntry("Block " + block.getID() + " is contained in the blockchain at height " + counter);
+                BitcoinReporter.addEvent(
+						Simulation.currentSimulationID,
+						-1,
+                		Simulation.currTime,
+                		System.currentTimeMillis() - Simulation.sysStartTime,
+                		"ERROR: Unexpected block discard",
+                		-1,
+                		block.getID(),
+                		block.printIDs(";"));
 				return true; // Found the block in the parental structure
 				}
 
@@ -408,6 +453,19 @@ public class Blockchain implements IStructure {
 		return false; // Block not found in the parental structure
 	}
 
+	
+
+	public boolean satisfiesDependencies(TransactionGroup g, TxDependencyRegistry reg) {
+		return(allTx.satisfiesDependenciesOf_InclSelf(g, reg));
+	}
+
+	
+	public boolean satisfiesDependencies(Transaction t, TxDependencyRegistry reg) {
+		return(allTx.satisfiesDependenciesOf(t, reg));
+	}
+	
+	
+	
  	/**
 	 * Returns the height of the blockchain, i.e., the height of the tallest block.
 	 * @return The height of the tallest block in the blockchain. If the blockchain is empty, returns 0.
@@ -632,6 +690,15 @@ public class Blockchain implements IStructure {
 			current = (Block) current.getParent();
 		}
 		return result.toString();
+	}
+
+
+	// --------------------
+	// GETTERS
+	// --------------------
+
+	public TransactionGroup getTransactionGroup() {
+		return allTx;
 	}
 
 }
