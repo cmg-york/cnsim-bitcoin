@@ -86,7 +86,8 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
 				System.currentTimeMillis() - Simulation.sysStartTime,
 				"Discarding Tx due to: " + msg,
     			node.getID(),
-    			t.getID());
+    			t.getID(),
+    			"");
     	}
     }
     
@@ -123,7 +124,8 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
         				System.currentTimeMillis() - Simulation.sysStartTime,
         				"Discarding Tx due to: tx contained in system" + msg,
             			node.getID(),
-            			t.getID());
+            			t.getID(),
+            			"");
             }
     	} else {
     		String msg = (dependenciesPresent ? " " : " dependencies not satisfied ") +
@@ -135,7 +137,8 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
 				System.currentTimeMillis() - Simulation.sysStartTime,
 				"Discarding Tx due to: " + msg,
     			node.getID(),
-    			t.getID());
+    			t.getID(),
+    			"");
     	}
     }
 
@@ -215,7 +218,8 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
 				System.currentTimeMillis() - Simulation.sysStartTime,
 				"Discarding Propagated Container due to: " + msg,
     			node.getID(),
-    			t.getID());
+    			t.getID(),
+    			"");
         }
     }
 
@@ -326,8 +330,8 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
 				System.currentTimeMillis() - Simulation.sysStartTime,
 				"Discarding Tx due to: " + msg,
     			node.getID(),
-    			t.getID()
-    				);
+    			t.getID(),
+    			"");
     	}
     	
     	return (conflictFree && dependenciesPresent); 

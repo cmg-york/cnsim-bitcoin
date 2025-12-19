@@ -109,7 +109,8 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
         		System.currentTimeMillis() - Simulation.sysStartTime,
         		"Attack Starts",
         		node.getID(),
-        		b.getID());
+        		b.getID(),
+        		"");
         
         isAttackInProgress = true;
         calculateBlockchainSizeAtAttackStart();
@@ -198,7 +199,8 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                     		System.currentTimeMillis() - Simulation.sysStartTime,
                     		"Target Transaction Pops Up at " + targetTransactionBlockHeight + " waiting for " + requiredConfirmationsBeforeAttack + " confirmations. Current: " + currentConfirmations,
                     		node.getID(),
-                    		b.getID());
+                    		b.getID(),
+                    		"");
                     
                 }
             } else { //Does not contain target transaction
@@ -267,7 +269,8 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                                 " waiting for " + requiredConfirmationsBeforeAttack +
                                 " confirmations. Current: " + currentConfirmations,
                         		node.getID(),
-                        		b.getID());
+                        		b.getID(),
+                        		"");
                     }
                 } else {
                     BitcoinReporter.reportBlockEvent(
@@ -425,7 +428,8 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                                         requiredConfirmationsBeforeAttack + " confirmations. Current: " +
                                         currentConfirmations,
                         		node.getID(),
-                        		b.getID());
+                        		b.getID(),
+                        		"");
                     }
 
                     node.stopMining();
@@ -516,7 +520,8 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
         		System.currentTimeMillis() - Simulation.sysStartTime,
         		"Chain Reveal",
         		node.getID(),
-        		-1);
+        		-1,
+        		"");
         
         
         // Report chain reveal event

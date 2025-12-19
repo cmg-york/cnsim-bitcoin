@@ -442,7 +442,8 @@ public class Blockchain implements IStructure {
                 		System.currentTimeMillis() - Simulation.sysStartTime,
                 		"ERROR: Unexpected block discard",
                 		-1,
-                		block.getID());
+                		block.getID(),
+                		"");
 				return true; // Found the block in the parental structure
 				}
 
