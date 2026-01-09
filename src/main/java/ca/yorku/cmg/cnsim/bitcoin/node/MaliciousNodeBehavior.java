@@ -502,16 +502,31 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
     }
 
     private void revealHiddenChain() {
+        // Store the blockchain height before revealing
+        int publicChainHeightBeforeReveal = node.getStructure().getBlockchainHeight();
+
         for (int i = hiddenChain.size()-1; i >= 0; i--) {
             Block b = hiddenChain.get(i);
             b.setParent(i==0 ? lastBlock : hiddenChain.get(i-1));
             node.getStructure().addToStructure(b);
             node.broadcastContainer(b, Simulation.currTime);
         }
-        isAttackInProgress = false;
+
         int revealedChainLength = hiddenChain.size();
+
+        // Check if attack succeeded by comparing final blockchain height
+        // If the revealed chain became the longest chain, the height will have increased
+        int finalBlockchainHeight = node.getStructure().getBlockchainHeight();
+        Block newLongestTip = node.getStructure().getLongestTip();
+
+        // Check if the longest tip now is part of the revealed hidden chain
+        // The attack succeeds if the hidden chain became the main chain
+        boolean attackSucceeded = finalBlockchainHeight > publicChainHeightBeforeReveal;
+
+        isAttackInProgress = false;
         hiddenChain = new ArrayList<Block>();
         node.removeFromPool(targetTxID);
+
         //Debug.p("Chain reveal! at time " + Simulation.currTime);
         BitcoinReporter.addEvent(
 				Simulation.currentSimulationID,
@@ -522,8 +537,8 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
         		node.getID(),
         		-1,
         		"");
-        
-        
+
+
         // Report chain reveal event
         BitcoinReporter.reportAttackEvent(
                 node.getSim().getSimID(),
@@ -535,9 +550,39 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
                 -1,
                 targetTransactionBlockHeight,
                 revealedChainLength,
-                node.getStructure().getBlockchainHeight(),
+                finalBlockchainHeight,
                 "Revealed hidden chain of length " + revealedChainLength
         );
+
+        // Report attack outcome
+        String outcomeEvent = attackSucceeded ? "Attack Success" : "Attack Failed";
+        String outcomeDescription = attackSucceeded
+            ? "Hidden chain became the longest chain (height: " + finalBlockchainHeight + ")"
+            : "Hidden chain was not long enough (public: " + publicChainHeightBeforeReveal + ", hidden: " + revealedChainLength + ")";
+
+        BitcoinReporter.reportAttackEvent(
+                node.getSim().getSimID(),
+                Simulation.currTime,
+                System.currentTimeMillis(),
+                node.getID(),
+                outcomeEvent,
+                targetTxID,
+                -1,
+                targetTransactionBlockHeight,
+                revealedChainLength,
+                finalBlockchainHeight,
+                outcomeDescription
+        );
+
+        BitcoinReporter.addEvent(
+				Simulation.currentSimulationID,
+				-1,
+        		Simulation.currTime,
+        		System.currentTimeMillis() - Simulation.sysStartTime,
+        		outcomeEvent + ": " + outcomeDescription,
+        		node.getID(),
+        		-1,
+        		"");
     }
 
     
@@ -620,8 +665,11 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
     }
 
     private boolean shouldRevealHiddenChain() {
-        return (hiddenChain.size() > publicChainGrowthSinceAttack && publicChainGrowthSinceAttack > minChainLength)
-                || publicChainGrowthSinceAttack > maxChainLength;
+        // Reveal when:
+        // 1. Hidden chain is ahead AND public chain has grown past minimum length, OR
+        // 2. Public chain has grown too much (emergency reveal to avoid losing everything)
+        return (hiddenChain.size() > publicChainGrowthSinceAttack && publicChainGrowthSinceAttack >= minChainLength)
+                || publicChainGrowthSinceAttack >= maxChainLength;
     }
 
     private void checkAndRevealHiddenChain(Block b) {
