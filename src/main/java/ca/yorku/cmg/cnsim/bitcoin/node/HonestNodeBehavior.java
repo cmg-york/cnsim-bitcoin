@@ -113,6 +113,9 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
 
     	if (conflictFree && dependenciesPresent) {
     		if (!containedInPool && !containedInStructure) {
+    			//if (containsInt(node.getPool().printIDs(";"),(int) t.getID())) {
+    			//	throw new RuntimeException("Tx:" + t.getID() + " found to be included in pool: " + node.getPool().printIDs(";"));
+    			//}
                 transactionReceipt(t,time);
             } else {
             	String msg = (containedInPool ? " pool, ": "") + (containedInStructure ? " structure." : "");
@@ -348,7 +351,11 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
     	boolean conflictFree = 
     			(conflict == -1) // There is no conflict 
     			||
-    			!(node.getPool().contains(conflict) || node.getStructure().contains(conflict))
+    			!(node.getPool().contains(conflict) 
+    				|| 
+    			  node.getStructure().contains(conflict)
+    				|| 
+    			  node.getMiningPool().contains(conflict))
     			; //conflict does not overlap 
     	
     	return (conflictFree);
@@ -441,5 +448,27 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
         considerMining(time);
     }
 
+    
+    
+    // =================================
+    // HELPERS
+    // =================================
+    
+    private boolean containsInt(String s, int j) {
+        if (s == null || s.length() <= 2) {
+            return false;
+        }
+
+        // Remove braces
+        String content = s.substring(1, s.length() - 1);
+
+        // Split and check
+        for (String token : content.split(";")) {
+            if (Integer.parseInt(token.trim()) == j) {
+                return true;
+            }
+        }
+        return false;
+    }
 
 }

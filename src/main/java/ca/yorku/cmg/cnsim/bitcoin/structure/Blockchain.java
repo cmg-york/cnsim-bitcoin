@@ -198,7 +198,7 @@ public class Blockchain implements IStructure {
 				//Impossible except in the case where the block is a propagated genesis child.
 				
 				//It is a genesis block
-				/* 
+				 
 				b.setParent(null); // it was already but for clarity
 				b.setHeight(1);
 				addBlock(b);
@@ -206,7 +206,7 @@ public class Blockchain implements IStructure {
 				tips.add(b);
 
 				processOrphans();
-			*/
+			
 				//Log this unusual case
 				BitcoinReporter.reportBlockEvent(
 						Simulation.currentSimulationID,
@@ -216,7 +216,7 @@ public class Blockchain implements IStructure {
 						b.getID(),((b.getParent() == null) ? -1 : b.getParent().getID()),
 						b.getHeight(),
 						b.printIDs(";"),
-						"[Propagated genesis child?] Did nothing.", 
+						"[Propagated genesis child?] Added to genesis.", 
 	                    b.getValidationDifficulty(),
 	                    b.getValidationCycles());				
 			}
@@ -440,7 +440,7 @@ public class Blockchain implements IStructure {
 						-1,
                 		Simulation.currTime,
                 		System.currentTimeMillis() - Simulation.sysStartTime,
-                		"ERROR: Unexpected block discard",
+                		"ERROR: Unexpected block overlap",
                 		-1,
                 		block.getID(),
                 		"");
