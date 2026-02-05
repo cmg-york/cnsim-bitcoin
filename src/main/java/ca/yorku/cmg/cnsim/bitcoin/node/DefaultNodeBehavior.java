@@ -1,5 +1,6 @@
 package ca.yorku.cmg.cnsim.bitcoin.node;
 
+import ca.yorku.cmg.cnsim.bitcoin.reporter.BitcoinReporter;
 import ca.yorku.cmg.cnsim.bitcoin.structure.Block;
 import ca.yorku.cmg.cnsim.engine.config.Config;
 import ca.yorku.cmg.cnsim.engine.transaction.ITxContainer;
@@ -68,31 +69,57 @@ public abstract class DefaultNodeBehavior implements NodeBehaviorStrategy {
 		if (isWorthMining()) {
 			//Start mining and schedule a new validation event
 			if (!node.isMining()) {
-				//TODO: Turn these assertions into exceptions?
-				//It is not mining because it has never OR it has but then abandoned.
-				assert((node.getNextValidationEvent() == null) || ((node.getNextValidationEvent() != null) ? node.getNextValidationEvent().ignoreEvt(): true));
 
-				//Creating here a new block with the current pool
-				//... pool is to be updated with the pool at validation time
-				long interval = node.scheduleValidationEvent(new Block(node.getMiningPool().getTransactions()), time);				
-				node.startMining(interval);
-			} else {
+				//It is not mining because it has never OR it has but then abandoned.
+				if (!((node.getNextValidationEvent() == null) || ((node.getNextValidationEvent() != null) ? node.getNextValidationEvent().ignoreEvt(): true))) {
+					throw new IllegalStateException("Unexpected state of idle miner eager to start mining.");
+				}
+
+				if ((node.getNextValidationEvent() != null) && (node.getNextValidationEvent().getTime() > time) 
+						&& false) {
+					long nextValTime = node.getNextValidationEvent().getTime();
+					node.getNextValidationEvent().ignoreEvt(false);
+					node.scheduleValidationEvent_Deterministic(
+								new Block(node.getMiningPool().getTransactions()), nextValTime);
+					node.startMining(nextValTime - time);
+				} else {
+					//Creating here a new block with the current pool
+					//... pool is to be updated with the pool at validation time
+					if (node.getNextValidationEvent() != null) {
+						node.getNextValidationEvent().ignoreEvt(true);
+					}
+					
+					long interval = node.scheduleValidationEvent(new Block(node.getMiningPool().getTransactions()), time);
+					node.startMining(interval);					
+				}
 				
-				assert((node.getNextValidationEvent() != null) && !node.getNextValidationEvent().ignoreEvt());
+		
+			} else {
+				if (!((node.getNextValidationEvent() != null) && !node.getNextValidationEvent().ignoreEvt())) {
+					throw new IllegalStateException("Unexpected state of active miner eager to continue mining.");
+				}
 				
 			}
 		} else {
 			if (!node.isMining()) {
-				assert((node.getNextValidationEvent() == null) || node.getNextValidationEvent().ignoreEvt());
-				//All good otherwise!
+				if (!((node.getNextValidationEvent() == null) || node.getNextValidationEvent().ignoreEvt())) {
+					throw new IllegalStateException("Unexpected state of active miner eager to continue mining.");
+				}
+				
 			} else  {
 				// Stop mining, invalidate any future validation event.
-				assert((node.getNextValidationEvent() != null) && !node.getNextValidationEvent().ignoreEvt());
-				node.getNextValidationEvent().ignoreEvt(true);
+				if (!((node.getNextValidationEvent() != null) && !node.getNextValidationEvent().ignoreEvt())) {
+					throw new IllegalStateException("Unexpected state of active miner eager to continue mining.");
+				}
+
 				
+				node.getNextValidationEvent().ignoreEvt(true);
 				node.stopMining();
 				
-				assert((node.getNextValidationEvent() == null) || ((node.getNextValidationEvent() != null) ? node.getNextValidationEvent().ignoreEvt(): true));
+				if (!((node.getNextValidationEvent() == null) || ((node.getNextValidationEvent() != null) ? node.getNextValidationEvent().ignoreEvt(): true))) {
+					throw new IllegalStateException("Unexpected state of active miner eager to continue mining.");
+				}
+				
 			}
 		}
 	}

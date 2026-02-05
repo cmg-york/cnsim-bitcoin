@@ -87,18 +87,21 @@ public class Blockchain implements IStructure {
 		// Find the parent. 
 		// Search by ID because the object may reside in another node.
 		Block parent = (Block) findParentOfbyID(b);
+		
+		
 		if (parent == null) {
 			//Did not find parent, add to orphans
 			addToOrphans(b);
+			
 		} else {
 			
+		
 			//Found the parent, check now for overlaps
 			if (!hasChainOverlap(b,parent)) {
 
 				//No overlaps found good to append.
-
+			
 				b.setHeight(parent.getHeight() + 1);
-				//blockchain.add(b);
 				addBlock(b);
 
 				
@@ -122,6 +125,11 @@ public class Blockchain implements IStructure {
 	                    b.getValidationCycles());
 				processOrphans();
 			} else {
+				
+				if (b.getID() == 9) {
+					System.err.println("I found an overlap and I am discarding");  
+				}
+				
 				//Overlap found, discard block
 				BitcoinReporter.reportBlockEvent(
 						Simulation.currentSimulationID,
@@ -340,6 +348,7 @@ public class Blockchain implements IStructure {
 				winningTip = t;
 			}
 		}
+		
 		return (winningTip);
 	}
 	
