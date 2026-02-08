@@ -88,13 +88,15 @@ public abstract class DefaultNodeBehavior implements NodeBehaviorStrategy {
 					if (node.getNextValidationEvent() != null) {
 						node.getNextValidationEvent().ignoreEvt(true);
 					}
-					
+
+
 					long interval = node.scheduleValidationEvent(new Block(node.getMiningPool().getTransactions()), time);
 					node.startMining(interval);					
 				}
 				
 		
 			} else {
+
 				if (!((node.getNextValidationEvent() != null) && !node.getNextValidationEvent().ignoreEvt())) {
 					throw new IllegalStateException("Unexpected state of active miner eager to continue mining.");
 				}

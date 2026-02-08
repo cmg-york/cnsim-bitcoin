@@ -158,9 +158,9 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
      */
     @Override
     public void event_NodeReceivesPropagatedContainer(ITxContainer t) {
-        Block b = (Block) t;
-    
-        b.setCurrentNodeID(node.getID());
+    	Block b = (Block) t;
+
+    	b.setCurrentNodeID(node.getID());
         b.setLastBlockEvent("Node Receives Propagated Block");
         b.setValidationCycles(-1.0);
         b.setValidationDifficulty(-1.0);
@@ -178,7 +178,7 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
                 b.getValidationCycles());
         
         Block cB = getConflictBlock(b);
-        
+                
         //Must check every 
         if (!node.getStructure().contains(b) 
         		&& 
@@ -341,7 +341,7 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
     } */
 
     
-    private boolean conflictFree(Transaction t) {
+    protected boolean conflictFree(Transaction t) {
   	long conflict = node.getSim().getConflictRegistry().getMatch((int) t.getID());
     	
     	// Some error checking
@@ -361,7 +361,7 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
     	return (conflictFree);
     }
     
-    private boolean dependenciesPresent(Transaction t) {
+    protected boolean dependenciesPresent(Transaction t) {
     	//Transaction dependencies are all present
     	// TODO: The method satisfiesDependenciesOf_Incl_3rdGroup does not exist in the engine
     	// Temporarily returning true until the method is implemented
@@ -388,7 +388,7 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
 	 * @param b the block to analyze for conflicts
 	 * @return a new block containing only conflicting transactions.
 	 */
-    private Block getConflictBlock(Block b) { 
+    protected Block getConflictBlock(Block b) { 
         Block conflictBlock = new Block();
         for (Transaction r : b.getTransactions()) {
         	long conflict = node.getSim().getConflictRegistry().getMatch((int) r.getID());
@@ -411,7 +411,7 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
      * @param b the newly received block
      */
     void handleNewBlockReception(Block b) {
-        //Add block to blockchain
+    	//Add block to blockchain
         node.getStructure().addToStructure(b);
         //Remove block transactions from pool.
         //Conflicts are not supposed to be there anyway as the pool is guarded.

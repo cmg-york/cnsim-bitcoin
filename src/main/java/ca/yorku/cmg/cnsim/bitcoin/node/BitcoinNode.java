@@ -1,6 +1,7 @@
 package ca.yorku.cmg.cnsim.bitcoin.node;
 
 import ca.yorku.cmg.cnsim.bitcoin.reporter.BitcoinReporter;
+import ca.yorku.cmg.cnsim.bitcoin.structure.Block;
 import ca.yorku.cmg.cnsim.bitcoin.structure.Blockchain;
 import ca.yorku.cmg.cnsim.engine.Simulation;
 import ca.yorku.cmg.cnsim.engine.config.Config;
@@ -36,13 +37,13 @@ import ca.yorku.cmg.cnsim.engine.transaction.TransactionGroup;
  * @see Blockchain
  */
 public class BitcoinNode extends PoWNode {
-	private NodeBehaviorStrategy behaviorStrategy;
-	private TransactionGroup miningPool;
-	private Blockchain blockchain;
+	protected NodeBehaviorStrategy behaviorStrategy;
+	protected TransactionGroup miningPool;
+	protected Blockchain blockchain;
 
-	private Double operatingDifficulty;
-	private long minValueToMine;
-	private long minSizeToMine;
+	protected Double operatingDifficulty;
+	protected long minValueToMine;
+	protected long minSizeToMine;
 
 
 	// -----------------------------------------------
@@ -74,9 +75,12 @@ public class BitcoinNode extends PoWNode {
 		this.behaviorStrategy = behaviorStrategy;
 	}
 
-
-
-
+	/**
+	 * DO NOT USE.
+	 */
+	public BitcoinNode() {
+		
+	}
 
 	//-----------------------------------------------
 	// EVENT HANDLING
