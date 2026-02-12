@@ -416,6 +416,13 @@ public class Blockchain implements IStructure {
 			}
 			*/
 		}
+		
+		for (Block b : orphans) {
+			if (b.contains(txID)) {
+				found = true;
+			}
+		}
+				
 		return found;
 	}
 	

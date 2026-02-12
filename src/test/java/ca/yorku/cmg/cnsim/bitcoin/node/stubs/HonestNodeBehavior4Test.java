@@ -23,7 +23,7 @@ public class HonestNodeBehavior4Test extends HonestNodeBehavior {
     
 	@Override
     protected void reconstructMiningPool() {
-		node.setMiningPool(node.getPool().getTopN(50000, 
+		node.setMiningPool(node.getPool().getTopN(5000000, 
 				new TxValuePerSizeComparator()));
 	}
 	
