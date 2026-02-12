@@ -155,8 +155,6 @@ class HonestNodeTest {
         // Step:
         // 1. Continue the scenario, come up with more ideas.
         
-        
-        
 		System.err.println(String.join("\n",node.getStructure().printStructure()));
     }
 	
