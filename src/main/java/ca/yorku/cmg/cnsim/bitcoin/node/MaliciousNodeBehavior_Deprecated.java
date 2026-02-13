@@ -9,7 +9,7 @@ import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
 
 import java.util.ArrayList;
 
-public class MaliciousNodeBehavior extends DefaultNodeBehavior {
+public class MaliciousNodeBehavior_Deprecated extends DefaultNodeBehavior {
     /**
      * Minimum number of blocks the attacker must mine on the hidden chain before attempting to reveal it.
      * The attacker will only reveal the hidden chain if it is at least this many blocks longer than when the attack started.
@@ -49,7 +49,7 @@ public class MaliciousNodeBehavior extends DefaultNodeBehavior {
      * Reads chain length parameters from configuration.
      * @param node The node which has the behavior.
      */
-    public MaliciousNodeBehavior(BitcoinNode node) {
+    public MaliciousNodeBehavior_Deprecated(BitcoinNode node) {
         this.isAttackInProgress = false;
         this.node = node;
         this.honestBehavior = new HonestNodeBehavior(node);

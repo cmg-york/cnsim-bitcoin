@@ -2,7 +2,7 @@ package ca.yorku.cmg.cnsim.bitcoin;
 
 import ca.yorku.cmg.cnsim.bitcoin.node.BitcoinNode;
 import ca.yorku.cmg.cnsim.bitcoin.node.HonestNodeBehavior;
-import ca.yorku.cmg.cnsim.bitcoin.node.MaliciousNodeBehavior;
+import ca.yorku.cmg.cnsim.bitcoin.node.MaliciousNodeBehavior_Deprecated;
 import ca.yorku.cmg.cnsim.bitcoin.reporter.BitcoinReporter;
 import ca.yorku.cmg.cnsim.bitcoin.structure.Block;
 import ca.yorku.cmg.cnsim.engine.Simulation;
@@ -114,8 +114,8 @@ public class MaliciousBehaviorTest {
         // Verify the malicious node has the correct confirmations from config
         for (var nodeObj : s.getNodeSet().getNodes()) {
             BitcoinNode node = (BitcoinNode) nodeObj;
-            if (node.getBehaviorStrategy() instanceof MaliciousNodeBehavior) {
-                MaliciousNodeBehavior malBehavior = (MaliciousNodeBehavior) node.getBehaviorStrategy();
+            if (node.getBehaviorStrategy() instanceof MaliciousNodeBehavior_Deprecated) {
+                MaliciousNodeBehavior_Deprecated malBehavior = (MaliciousNodeBehavior_Deprecated) node.getBehaviorStrategy();
                 int actualConfirmations = malBehavior.getRequiredConfirmationsBeforeAttack();
                 System.out.println("Malicious node " + node.getID() +
                                  " configured with " + actualConfirmations + " required confirmations (from config)");

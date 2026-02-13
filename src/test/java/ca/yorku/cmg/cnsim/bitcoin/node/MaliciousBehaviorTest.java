@@ -3,10 +3,10 @@ package ca.yorku.cmg.cnsim.bitcoin.node;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import ca.yorku.cmg.cnsim.bitcoin.node.MaliciousNodeBehavior;
+import ca.yorku.cmg.cnsim.bitcoin.node.MaliciousNodeBehavior_Deprecated;
 
 class MaliciousNodeBehaviorTest {
-    private MaliciousNodeBehavior maliciousNode;
+    private MaliciousNodeBehavior_Deprecated maliciousNode;
 
     @BeforeEach
     void setUp() {

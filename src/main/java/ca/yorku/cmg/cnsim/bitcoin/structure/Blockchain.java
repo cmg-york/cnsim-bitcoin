@@ -428,7 +428,9 @@ public class Blockchain implements IStructure {
 	
 	
 	/**
-	 * Checks if a {@linkplain Block} is contained in the blockchain. Search by ID.
+	 * Checks if a {@linkplain Block} is contained in the chain that begins from the parent of 
+	 * the block and reaches the genesis. Contained means that any of its transactions is included 
+	 * in the chain being traversed. 
 	 * @param block Is the {@linkplain Block} to be checked.
 	 * @return Return {@code true} if it is contained {@code false} otherwise.
 	 */

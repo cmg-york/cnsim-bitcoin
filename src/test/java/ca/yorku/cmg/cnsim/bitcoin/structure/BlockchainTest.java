@@ -512,13 +512,13 @@ class BlockchainTest {
     final void testBelief() {
     	
     	try {
-			TestTutorial.start("Blockchain-build-up-and-belief-function.md");
+			TestTutorial.start("Blockchain-testBelief.md");
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
     	
-    	TestTutorial.step("# Blockchain Structure Build Up Belief Function Test Tutorial");
+    	TestTutorial.step("# Blockchain#testBelief Test Tutorial");
     	
     	TestTutorial.step("#### Create block {1,2,3,4,5,6} and add it to structure");
     	

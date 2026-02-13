@@ -55,7 +55,7 @@ public class BitcoinNodeFactory extends AbstractNodeFactory {
 		float nodeHashPower;
 		NodeBehaviorStrategy strategy;
 		if (this.defaultNodeType.equals("Malicious")) {
-			strategy = new MaliciousNodeBehavior(node);
+			strategy = new MaliciousNodeBehavior_Deprecated(node);
 			boolean powerByRatio = Config.getPropertyBoolean("node.maliciousPowerByRatio");
 			if (powerByRatio) {
 				if (this.refNs == null) {
@@ -76,7 +76,7 @@ public class BitcoinNodeFactory extends AbstractNodeFactory {
 			
 			//Set target transaction
 			int targetTx[] = Config.parseStringToIntArray(Config.getPropertyString("workload.sampleTransaction"));
-			((MaliciousNodeBehavior) strategy).setTargetTransaction(targetTx[0]);
+			((MaliciousNodeBehavior_Deprecated) strategy).setTargetTransaction(targetTx[0]);
 			
 		} else {
 			strategy = new HonestNodeBehavior(node);

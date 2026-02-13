@@ -72,11 +72,12 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
     	boolean conflictFree = conflictFree(t);
     	boolean dependenciesPresent = dependenciesPresent(t);
 
-    	if (conflictFree && dependenciesPresent) { 
+    	if (conflictFree && dependenciesPresent) {
+    		//Transaction can be added and broadcasted
             transactionReceipt(t,time);
             node.broadcastTransaction(t,time);
     	} else {
-    		
+    		//Dependencies and/or conflict constraints not satisfied - discard
     		String msg = (dependenciesPresent ? " " : " dependencies not satisfied ") +
     				(conflictFree? " " : " conflicts present");
     		BitcoinReporter.addEvent(
@@ -113,13 +114,11 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
 
     	if (conflictFree && dependenciesPresent) {
     		if (!containedInPool && !containedInStructure) {
-    			//if (containsInt(node.getPool().printIDs(";"),(int) t.getID())) {
-    			//	throw new RuntimeException("Tx:" + t.getID() + " found to be included in pool: " + node.getPool().printIDs(";"));
-    			//}
+    			//The transaction can be received
                 transactionReceipt(t,time);
             } else {
+            	//The transaction is already in the structure or pool
             	String msg = (containedInPool ? " pool, ": "") + (containedInStructure ? " structure." : "");
-            	String contents = (containedInPool ? " Pool, " + node.getPool().printIDs(";") : "") + (containedInStructure ? " structure." : "");
         		BitcoinReporter.addEvent(
         				Simulation.currentSimulationID,
         				-1,
@@ -131,6 +130,7 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
             			"");
             }
     	} else {
+    		//Dependencies and/or conflict constraints are not satisfied
     		String msg = (dependenciesPresent ? " " : " dependencies not satisfied ") +
     				(conflictFree? " " : " conflicts present");
     		BitcoinReporter.addEvent(
@@ -160,6 +160,8 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
     public void event_NodeReceivesPropagatedContainer(ITxContainer t) {
     	Block b = (Block) t;
 
+    	// The block is a copy of the block object that was validated by 
+    	// the originating node (see below)
     	b.setCurrentNodeID(node.getID());
         b.setLastBlockEvent("Node Receives Propagated Block");
         b.setValidationCycles(-1.0);
@@ -177,14 +179,19 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
                 b.getValidationDifficulty(),
                 b.getValidationCycles());
         
+        //Create an artificial block that contains all conflicting transactions for b
         Block cB = getConflictBlock(b);
                 
-        //Must check every 
-        if (!node.getStructure().contains(b) 
-        		&& 
-        		!node.getStructure().contains(cB)
-        		//&& node.getStructure().satisfiesDependencies(b,node.getSim().getDependencyRegistry())
+        
+        // VALIDATE BLOCK
+
+        if (
+        		!node.getStructure().contains(b) && //No tx of b is in the chain where b is going to sit on 
+        		!node.getStructure().contains(cB) && //No tx of b is in the conflict group
+        		//All tx of b satisfy their dependencies
+        		node.getStructure().satisfiesDependencies(b,node.getSim().getDependencyRegistry()) 
         		) {
+        	// The block can be accepted
             handleNewBlockReception(b);
         } else {
             //Discard the block and report the event.
@@ -252,6 +259,7 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
                 node.getOperatingDifficulty(),
                 node.getProspectiveCycles());
 
+        //Run default actions (mostly cycle stats)
         node.completeValidation(node.getMiningPool(), time);
 
         //Report the validation event
@@ -268,25 +276,13 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
                 b.getValidationCycles());
         
         
-        //Sets the parent of the new block to be the longest tip
-        // FIXME: Should be the longest consistent tip
+        
+        //SANITY TEST - BEGIN
+        // Check to see if where the block is supposed to go is consistent.
         b.setParent(node.getStructure().getLongestTip());
-        
-        
-        
-        if (!node.getStructure().contains(b)) {
-            b.setParent(null);
-            //Add block to blockchain
-            node.getStructure().addToStructure(b);
-            
-            //Propagate a clone of the block to the rest of the network
-            try {
-				node.broadcastContainer((ITxContainer) b.clone(), time);
-			} catch (CloneNotSupportedException e) {
-				e.printStackTrace();
-			}
-        } else {
-        	BitcoinReporter.addErrorEntry("Node::event_NodeCompletesValidation: Block " + b.getID() + " containing " + b.printIDs(",") + " just validated is found to overlap with structure. This shouldn't happen as the node always updates its miningpool.");
+        if (node.getStructure().contains(b)) {
+        	String msg = "Node::event_NodeCompletesValidation: Block " + b.getID() + " containing " + b.printIDs(",") + " just validated is found to overlap with structure: \n" + node.getStructure().printStructure() + " Orphans are: \n:" + node.getStructure().printOrphans() + "\n This should not happen as the node always updates its miningpool to have no overlaps with structure.\n\n";
+        	BitcoinReporter.addErrorEntry(msg);
             BitcoinReporter.reportBlockEvent(
 					Simulation.currentSimulationID,
             		b.getSimTime_validation(),
@@ -295,13 +291,27 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
                     b.getID(),((b.getParent() == null) ? -1 : b.getParent().getID()),
                     b.getHeight(),
                     b.printIDs(";"),
-                    "Discarding own Block (ERROR)",
+                    "Validating Inconsistent Block (WARNING) - See ERROR log.",
                     b.getValidationDifficulty(),
                     b.getValidationCycles());
-            
         }
+        // SANITY TEST - END
 
+        // OK now set the parent back to null and let
+        // Structure deal with finding a parent.
+        b.setParent(null);
+        node.getStructure().addToStructure(b);
+        
+        //Propagate a clone of the block to the rest of the network
+        try {
+			node.broadcastContainer((ITxContainer) b.clone(), time);
+		} catch (CloneNotSupportedException e) {
+			e.printStackTrace();
+		}
+
+        // What now?
         processPostValidationActivities(time);
+  
     }
 
     
@@ -309,37 +319,6 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
     // -----------------------------------------------------------------------
     // HELPER METHODS
     // -----------------------------------------------------------------------
-
-    
-    /** 
-	 * Checks whether a new transaction is valid to be added to the node's pool.
-	 * A transaction is considered valid if it does not conflict with existing
-	 * transactions in the pool or blockchain, based on the node's conflict registry.
-	 *
-	 * @param t the {@linkplain Transaction} to validate
-	 * @return {@code true} if the transaction is valid and can be added to the pool; {@code false} otherwise
-	 */
-    /* private boolean newTxValid(Transaction t) {
-
-    	
-    	if (!conflictFree || !dependenciesPresent) {
-    		String msg = (dependenciesPresent ? " " : " dependencies not satisfied ") +
-    				(conflictFree? " " : " conflicts present");
-    		
-    		BitcoinReporter.addEvent(
-				Simulation.currentSimulationID,
-				-1,
-				Simulation.currTime,
-				System.currentTimeMillis() - Simulation.sysStartTime,
-				"Discarding Tx due to: " + msg,
-    			node.getID(),
-    			t.getID(),
-    			"");
-    	}
-    	
-    	return (conflictFree && dependenciesPresent); 
-    } */
-
     
     protected boolean conflictFree(Transaction t) {
   	long conflict = node.getSim().getConflictRegistry().getMatch((int) t.getID());
@@ -361,23 +340,25 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
     	return (conflictFree);
     }
     
+    
+    /** 
+     * Checks whether all dependencies of the transaction are satisfied in the current structure and pool 
+     * of the node. It calls the method {@code TransactionGroup#satisfiesDependenciesOf_Incl_3rdGroup} 
+     * of the pool, which checks for dependencies in the structure, pool and mining pool.
+     * @param t The transaction to check for dependencies.
+     * @return true if all dependencies are satisfied, false otherwise.
+     */
     protected boolean dependenciesPresent(Transaction t) {
-    	//Transaction dependencies are all present
-    	// TODO: The method satisfiesDependenciesOf_Incl_3rdGroup does not exist in the engine
-    	// Temporarily returning true until the method is implemented
-    	return true;
-    	/*
     	return(
     			node.getPool().satisfiesDependenciesOf_Incl_3rdGroup(
     					t.getID(),
-    					node.getStructure().getTransactionGroup(),
+    					//Check also the entire blockchain structure (as a 3rd group).
+    					node.getStructure().getTransactionGroup(), 
     					node.getSim().getDependencyRegistry())
     			);
-    	*/
     }
 
     
-
     /**
 	 * Extracts conflicting transactions from a given block based on the node's
 	 * conflict registry. The returning transactions are not real but manufactured as stand-ins
@@ -448,27 +429,5 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
         considerMining(time);
     }
 
-    
-    
-    // =================================
-    // HELPERS
-    // =================================
-    
-    private boolean containsInt(String s, int j) {
-        if (s == null || s.length() <= 2) {
-            return false;
-        }
-
-        // Remove braces
-        String content = s.substring(1, s.length() - 1);
-
-        // Split and check
-        for (String token : content.split(";")) {
-            if (Integer.parseInt(token.trim()) == j) {
-                return true;
-            }
-        }
-        return false;
-    }
 
 }
