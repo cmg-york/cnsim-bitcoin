@@ -1,4 +1,4 @@
-package ca.yorku.cmg.cnsim.bitcoin.analysis;
+package ca.yorku.cmg.cnsim.bitcoin.utils;
 
 import ca.yorku.cmg.cnsim.engine.Debug;
 import ca.yorku.cmg.cnsim.engine.Simulation;

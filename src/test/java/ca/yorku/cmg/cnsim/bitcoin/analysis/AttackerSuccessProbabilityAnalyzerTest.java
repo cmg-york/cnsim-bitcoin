@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
 
+import ca.yorku.cmg.cnsim.bitcoin.utils.AttackerSuccessProbabilityAnalyzer;
+
 /**
  * Test class for {@link AttackerSuccessProbabilityAnalyzer}.
  * <p>
