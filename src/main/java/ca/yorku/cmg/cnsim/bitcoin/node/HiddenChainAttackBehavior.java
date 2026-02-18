@@ -55,7 +55,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
     private HonestNodeBehavior honestBehavior;
 
     /**
-     * Enumeration of possible attack states.
+     * The current operational state of the attack.
      * Controls whether and how the node participates in hidden chain mining.
      */
     private State currentState;
@@ -63,55 +63,55 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
     /**
      * Attacker's mining power (in trials per unit of time). See unit documentation.
      * Value of -1 indicates uninitialized; must be set before attack initiation.
-     * Used in attack parameter validation.
      */
     private float attackPower = -1;
 
     /**
-     * Attacker normal/initial mining power (in trials per unit of time). See unit documentation.
-     * Value of -1 indicates uninitialized. Serves as a temporary storage of initial hashpower 
-     * prior to commencement of the attack, so that the node can revert to it after the attack is over.  
+     * Node's normal (pre-attack) mining power (in trials per unit of time).
+     * Value of -1 indicates uninitialized. Stored when attack begins so the node
+     * can revert to honest hash power after the attack completes or is cancelled.
      */
     private float honestPower = -1;
-    
-    
+
     /**
      * Target transaction ID for the attack (double-spend or orphan attempt).
-     * In MONITORING state, the attacker waits for a block containing this transaction.
-     * When received, the attack is triggered. Value of -1 indicates no target set.
+     * In MONITORING state, the node waits for a block containing this transaction;
+     * upon reception, the attack is triggered. Value of -1 indicates no target set.
      */
     private long targetTransaction = -1;
 
     /**
-     * Attacker's initial disadvantage (blocks behind main chain) to trigger attack start.
-     * Typically a negative number. For example, -2 means "start when 2 blocks behind".
+     * Advantage threshold that triggers attack start.
+     * Typically zero or negative. For example, -2 means "start when 2 blocks behind".
+     * The attack starts when {@code getAdvantage() <= startAdvantage}.
      * Must be set via {@link #setStartAdvantage(Integer)} before entering MONITORING state.
      */
     private Integer startAdvantage;
 
     /**
-     * Attacker's advantage threshold (blocks ahead) that triggers hidden chain release.
+     * Advantage threshold that triggers hidden chain release.
      * Typically zero or positive. Zero reproduces Nakamoto attack probabilities.
-     * When {@code getAdvantage() >= releaseAdvantage}, the hidden chain is released.
+     * The chain is released when {@code getAdvantage() >= releaseAdvantage}.
+     * Must be set via {@link #setReleaseAdvantage(Integer)} before entering MONITORING state.
      */
     private Integer releaseAdvantage;
 
     /**
-     * Private blockchain maintained by the attacker.
-     * Contains blocks mined during ATTACKING state that have not yet been released
-     * to the network. This chain is separate from and typically ahead of the main
-     * blockchain. Cleared when attack completes or transitions to IDLE.
+     * Private blockchain maintained by the attacker during ATTACKING state.
+     * Contains blocks mined secretly that have not yet been released to the network.
+     * Cleared when the attack completes or is cancelled.
      */
     private ArrayList<Block> hiddenChain;
 
     /**
      * Reference to the tip (latest block) of the hidden chain.
-     * Initially null; takes parent reference from blocks added during attack via
+     * Null when no attack is in progress. Set to the parent of the target transaction's
+     * block when the attack starts, then updated as each new hidden block is added via
      * {@link #nodeCompletesMaliciousValidation(ITxContainer, long)}.
-     * Updated as new blocks are added to hidden chain during mining.
-     * Used to calculate advantage and track hidden chain height.
+     * Used to calculate the attacker's current advantage.
      */
     private Block hiddenChainTip = null;
+
 
     // ================================
     // CONSTRUCTORS
@@ -129,14 +129,16 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
      * <p><b>JML Contract:</b></p>
      * <pre>{@code
      *   //@ requires node != null;
+     *   //@ requires beh != null;
      *   //@ ensures this.node == node;
      *   //@ ensures currentState == State.IDLE;
      *   //@ ensures hiddenChain != null && hiddenChain.isEmpty();
      *   //@ ensures honestBehavior != null;
      * }</pre>
      *
-     * @param node the Bitcoin node to which this behavior is attached
-     * @throws IllegalArgumentException if {@code node} is null
+     * @param node the Bitcoin node to which this behavior is attached (must not be null)
+     * @param beh  the honest behavior to wrap and delegate to (must not be null)
+     * @throws NullPointerException if {@code node} is null
      */
     public HiddenChainAttackBehavior(BitcoinNode node, HonestNodeBehavior beh) {
         Objects.requireNonNull(node, "BitcoinNode cannot be null");
@@ -148,11 +150,11 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
 
 
     // ================================
-    // MAIN PUBLIC METHODS
+    // EVENT HANDLERS
     // ================================
 
 
-	/**
+    /**
      * Handles transactions received directly from clients.
      * <p>
      * Behavior depends on current attack state:
@@ -167,16 +169,16 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
      *
      * <p><b>JML Contract:</b></p>
      * <pre>{@code
-     *   //@ requires t != null && time >= 0;
+     *   //@ requires t != null;
+     *   //@ requires time >= 0;
      *   //@ requires currentState != null;
-     *   //@ ensures (currentState == MONITORING && t.ID == targetTransaction) ==> (tx ignored);
-     *   //@ ensures (currentState == ATTACKING && t.ID == targetTransaction) ==> (exception);
      * }</pre>
      *
      * @param t    the received transaction (must not be null)
      * @param time the current simulation time (must be non-negative)
-     * @throws IllegalArgumentException if {@code t} is null or {@code time} is negative
-     * @throws IllegalStateException if target transaction arrives during ATTACKING state
+     * @throws NullPointerException     if {@code t} is null
+     * @throws IllegalArgumentException if {@code time} is negative
+     * @throws IllegalStateException    if target transaction arrives during ATTACKING state
      */
     @Override
     public void event_NodeReceivesClientTransaction(Transaction t, long time) {
@@ -216,22 +218,21 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
      *   <li><b>IDLE:</b> Delegates to honest behavior; normal propagation handling.</li>
      *   <li><b>MONITORING:</b> Ignores target transaction; forwards others normally.</li>
      *   <li><b>ATTACKING:</b> Maintains transaction pool on public chain while privately
-     *       mining hidden chain; rejects target transaction.</li>
+     *       mining hidden chain; accepts all propagated transactions.</li>
      * </ul>
      * </p>
      *
      * <p><b>JML Contract:</b></p>
      * <pre>{@code
-     *   //@ requires t != null && time >= 0;
+     *   //@ requires t != null;
+     *   //@ requires time >= 0;
      *   //@ requires currentState != null;
-     *   //@ ensures (currentState == MONITORING && t.ID == targetTransaction) ==> (tx ignored);
-     *   //@ ensures (currentState == ATTACKING && t.ID == targetTransaction) ==> (exception);
      * }</pre>
      *
      * @param t    the propagated transaction (must not be null)
      * @param time the current simulation time (must be non-negative)
-     * @throws IllegalArgumentException if {@code t} is null or {@code time} is negative
-     * @throws IllegalStateException if target transaction arrives during ATTACKING state
+     * @throws NullPointerException     if {@code t} is null
+     * @throws IllegalArgumentException if {@code time} is negative
      */
     @Override
     public void event_NodeReceivesPropagatedTransaction(Transaction t, long time) {
@@ -252,7 +253,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
             break;
 
         case ATTACKING:
-            // In ATTACKING, target transaction should not arrive; maintain honest pool
+            // In ATTACKING, maintain honest pool for public chain mining
             /* if (t.getID() == targetTransaction) {
                 throw new IllegalStateException(
                     "Target transaction propagated during attack (should not occur): " + t.getID());
@@ -268,28 +269,28 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
      * Behavior depends on current attack state:
      * <ul>
      *   <li><b>IDLE:</b> Delegates to honest behavior; normal block handling.</li>
-     *   <li><b>MONITORING:</b> Delegates to honest behavior; if block contains target
-     *       transaction, considers initiating attack via {@link #considerAttacking()}.</li>
-     *   <li><b>ATTACKING:</b> Delegates to honest behavior for public chain update;
-     *       tracks public chain length to evaluate if attack remains viable.</li>
+     *   <li><b>MONITORING:</b> Delegates to honest behavior; if the block contains the
+     *       target transaction, sets the hidden chain tip to the block's parent and
+     *       considers initiating the attack via {@link #considerAttacking()}.</li>
+     *   <li><b>ATTACKING:</b> Delegates to honest behavior to update the public chain;
+     *       advantage is re-evaluated in {@link #event_NodeCompletesValidation(ITxContainer, long)}.</li>
      * </ul>
-     * Attack initiation is triggered by target transaction appearing in any block.
      * </p>
      *
      * <p><b>JML Contract:</b></p>
      * <pre>{@code
-     *   //@ requires c != null && c instanceof Block;
+     *   //@ requires c != null;
+     *   //@ requires c instanceof Block;
      *   //@ requires currentState != null;
-     *   //@ ensures (currentState == MONITORING && c.contains(targetTransaction)) ==> (currentState == ATTACKING);
      * }</pre>
      *
-     * @param c the propagated block container (must not be null, must be a Block)
-     * @throws IllegalArgumentException if {@code c} is null or not a Block instance
+     * @param c the propagated block container (must not be null, must be a {@linkplain Block})
+     * @throws NullPointerException     if {@code c} is null
+     * @throws IllegalArgumentException if {@code c} is not a Block instance
      */
     @Override
     public void event_NodeReceivesPropagatedContainer(ITxContainer c) {
         Objects.requireNonNull(c, "Container cannot be null");
-        
         if (!(c instanceof Block)) {
             throw new IllegalArgumentException(
                 "Expected Block instance, got: " + c.getClass().getSimpleName());
@@ -305,97 +306,51 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
             // In MONITORING, accept blocks and check for target transaction trigger
             honestBehavior.event_NodeReceivesPropagatedContainer(c);
             if (c.contains(targetTransaction)) {
-                // Target transaction found in block - initiate attack
-            	if (hiddenChainTip != null) throw new IllegalStateException("hiddenChainTip must  be null at MONITORING state.");
-            	if (!hiddenChain.isEmpty()) throw new IllegalStateException("hiddenChain must be empty at MONITORING state.");
-
-            	//The hidden chain tip will now point to the parent of the target block.
-            	hiddenChainTip = (Block) ((Block) c).getParent();
-            	
-            	//See if it is time to start the attack and start it.
+                if (hiddenChainTip != null) throw new IllegalStateException("hiddenChainTip must be null in MONITORING state.");
+                if (!hiddenChain.isEmpty()) throw new IllegalStateException("hiddenChain must be empty in MONITORING state.");
+                // The hidden chain starts from the parent of the block containing the target
+                hiddenChainTip = (Block) ((Block) c).getParent();
                 considerAttacking();
             }
             break;
 
         case ATTACKING:
-            // In ATTACKING, update public chain to monitor advantage
+            // In ATTACKING, update the public chain to track attacker's advantage
             honestBehavior.event_NodeReceivesPropagatedContainer(c);
-            // Note: evaluateAttackState() called in event_NodeCompletesValidation()
+            // Note: evaluateAttackState() is called in event_NodeCompletesValidation()
             break;
         }
     }
 
     /**
-     * Evaluates whether attack conditions are favorable and initiates attack if ready.
-     * <p>
-     * Called in MONITORING state when the target transaction appears in a block.
-     * Checks if the attacker's current advantage has reached (or fallen below, since
-     * {@code startAdvantage} is typically negative) the configured start threshold.
-     * </p>
-     * <p>
-     * Attack triggers when: {@code getAdvantage() <= startAdvantage}
-     * </p>
-     * <p>
-     * Example: If {@code startAdvantage = -2}, attack starts once attacker is 2 blocks
-     * behind the longest public chain tip. A more negative threshold delays attack start.
-     * </p>
-     *
-     * <p><b>JML Contract:</b></p>
-     * <pre>{@code
-     *   //@ requires currentState == State.MONITORING;
-     *   //@ requires startAdvantage != null;
-     * }</pre>
-     */
-    private void considerAttacking() {
-        if (currentState == State.IDLE) {
-            throw new IllegalStateException("Should not consider attacking in IDLE state");
-        }
-        if (currentState == State.ATTACKING) {
-            throw new IllegalStateException(
-                "Should not consider attacking in ATTACKING state; behavior is already in that mode");
-        }
-        if (startAdvantage == null) {
-            throw new IllegalStateException(
-                "startAdvantage must be configured before considering attack");
-        }
-
-        if (getAdvantage() <= startAdvantage) {
-            startAttack();
-        }
-    }
-
-
-	/**
      * Handles completion of block validation by this node.
      * <p>
      * Behavior depends on attack state:
      * <ul>
      *   <li><b>IDLE:</b> Delegates to honest behavior; block added to public blockchain.</li>
      *   <li><b>MONITORING:</b> Delegates to honest behavior; block added to public blockchain.</li>
-     *   <li><b>ATTACKING:</b> Block added to hidden chain (not public blockchain); after
-     *       addition, evaluates if advantage threshold reached to trigger release.</li>
+     *   <li><b>ATTACKING:</b> Block is intercepted and added to the hidden chain instead
+     *       of the public blockchain. After addition, evaluates whether the release
+     *       advantage threshold has been reached.</li>
      * </ul>
-     * In ATTACKING state, the validated block is intercepted and added to the hidden
-     * chain instead of being propagated. The public blockchain is not updated.
      * </p>
      *
      * <p><b>JML Contract:</b></p>
      * <pre>{@code
-     *   //@ requires c != null && c instanceof Block && time >= 0;
+     *   //@ requires c != null;
+     *   //@ requires c instanceof Block;
+     *   //@ requires time >= 0;
      *   //@ requires currentState != null;
-     *   //@ ensures (currentState == IDLE || MONITORING) ==> (public chain updated);
-     *   //@ ensures (currentState == ATTACKING) ==> (hiddenChain.size() > old(hiddenChain.size()));
-     *   //@ ensures (currentState == ATTACKING && advantage >= releaseAdvantage) ==> (chain released);
      * }</pre>
      *
-     * @param c    the validated block (must not be null, must be a Block)
+     * @param c    the validated block (must not be null, must be a {@linkplain Block})
      * @param time the current simulation time (must be non-negative)
-     * @throws IllegalArgumentException if preconditions violated
+     * @throws NullPointerException     if {@code c} is null
+     * @throws IllegalArgumentException if {@code c} is not a Block, or {@code time} is negative
      */
     @Override
     public void event_NodeCompletesValidation(ITxContainer c, long time) {
-    	
-    	Objects.requireNonNull(c, "Container cannot be null");
+        Objects.requireNonNull(c, "Container cannot be null");
         if (!(c instanceof Block)) {
             throw new IllegalArgumentException(
                 "Expected Block instance, got: " + c.getClass().getSimpleName());
@@ -416,117 +371,29 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
         case ATTACKING:
             // In ATTACKING, intercept block and add to hidden chain
             nodeCompletesMaliciousValidation(c, time);
-            // Check if release advantage reached
+            // Check whether the release advantage threshold has been reached
             evaluateAttackState(time);
             break;
         }
-
-        
     }
-    
+
     @Override
     protected boolean isWorthMining() {
-    	return(node.getMiningPool().getCount() > 0);
-    }
-    
-
-	/**
-     * Adds a validated block to the hidden chain during attack.
-     * <p>
-     * Intercepts the block from honest validation and integrates it into the hidden
-     * chain structure. Updates the hidden chain tip and tracks the growing chain length.
-     * The block's parent is set to the current hidden chain tip to maintain continuity.
-     * </p>
-     *
-     * <p><b>JML Contract:</b></p>
-     * <pre>{@code
-     *   //@ requires c != null && c instanceof Block && time >= 0;
-     *   //@ requires currentState == ATTACKING;
-     *   //@ ensures hiddenChainTip == c;
-     *   //@ ensures hiddenChain.contains(c);
-     *   //@ ensures c.getParent() == old(hiddenChainTip);
-     * }</pre>
-     *
-     * @param c    the block to add to hidden chain (must not be null)
-     * @param time the simulation time (validation parameter, not used in this method)
-     */
-    private void nodeCompletesMaliciousValidation(ITxContainer c, long time) {
-        Objects.requireNonNull(c, "Container cannot be null");
-        if (!(c instanceof Block)) {
-            throw new IllegalArgumentException(
-                "Expected Block instance, got: " + c.getClass().getSimpleName());
-        }
-        if (time < 0) throw new IllegalArgumentException("Time cannot be negative: " + time);
-
-        System.err.println("About to complete valdation of " + c.getID() + " with " + c.printIDs(","));
-        System.err.println("Meanwhile, parent is " + ((c == null)?"null": c.getID()));
-        
-        Block block = (Block) c;
-
-        
-        //Add validation information to the block.
-        block.validateBlock(node.getMiningPool(),
-                Simulation.currTime,
-                System.currentTimeMillis() - Simulation.sysStartTime,
-                node.getID(),
-                "Node Completes Malicious Validation",
-                node.getOperatingDifficulty(),
-                node.getProspectiveCycles());
-
-        //Run default actions (mostly cycle stats)
-        node.completeValidation(node.getMiningPool(), time);
-
-        //Report the validation event
-        BitcoinReporter.reportBlockEvent(
-				Simulation.currentSimulationID,
-        		block.getSimTime_validation(),
-        		block.getSysTime_validation(),
-        		block.getValidationNodeID(),
-                block.getID(),((block.getParent() == null) ? -1 : block.getParent().getID()),
-                block.getHeight(),
-                block.printIDs(";"),
-                "Node Completes Validation",
-                block.getValidationDifficulty(),
-                block.getValidationCycles());
-        
-        // Set block's parent to current hidden chain tip
-        block.setParent(hiddenChainTip);
-
-        // Calculate block height: 1 if tip is null (genesis), otherwise tip height + 1
-        int blockHeight = (hiddenChainTip == null) ? 1 : hiddenChainTip.getHeight() + 1;
-        block.setHeight(blockHeight);
-
-        // Update tip and add to chain
-        hiddenChainTip = block;
-        hiddenChain.add(block);
-        System.err.println("Adding " + block.getID() + " to point to " + block.getParent().getID());
-        
-        processPostValidationActivities(time);
-        
+        return (node.getMiningPool().getCount() > 0);
     }
 
 
-	protected void processPostValidationActivities(long time) {
-        //Stop mining for now.
-        node.stopMining();
-        //Reset the next validation event.
-        node.resetNextValidationEvent();
-        //Remove the block's transactions from the mining pool.
-        node.removeFromPool(node.getMiningPool());
-        //Reconstruct mining pool, with whatever other transactions are there.
-        honestBehavior.reconstructMiningPool();
-        //Consider if it is worth mining.
-        considerMining(time);
-	}
+    // ================================
+    // STATE TRANSITION METHODS
+    // ================================
 
-
-	/**
+    /**
      * Transitions the attack state from IDLE to MONITORING.
      * <p>
-     * Enables passive observation of network conditions for attack opportunities.
-     * In MONITORING state, the node waits for a block containing the target
-     * transaction, which triggers automatic transition to ATTACKING state.
-     * No blocks are mined or hidden in MONITORING state.
+     * Enables passive observation of the network for attack opportunities.
+     * In MONITORING state, the node operates honestly while waiting for a block
+     * containing the target transaction, which automatically triggers transition
+     * to ATTACKING state. No blocks are mined secretly in MONITORING state.
      * </p>
      *
      * <p><b>JML Contract:</b></p>
@@ -540,7 +407,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
     public void goToMonitoringState() {
         if (currentState == State.ATTACKING) {
             throw new IllegalStateException(
-                "Cannot force switch from ATTACKING to MONITORING state");
+                "Cannot switch from ATTACKING to MONITORING state");
         } else if (currentState == State.MONITORING) {
             throw new IllegalStateException(
                 "Already in MONITORING state");
@@ -552,7 +419,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
      * Transitions the attack state from MONITORING back to IDLE.
      * <p>
      * Stops passive observation and returns to normal honest operation.
-     * No parameters are reset; can re-enter MONITORING with same configuration.
+     * No parameters are reset; the node can re-enter MONITORING with the same configuration.
      * </p>
      *
      * <p><b>JML Contract:</b></p>
@@ -561,12 +428,12 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
      *   //@ ensures currentState == State.IDLE;
      * }</pre>
      *
-     * @throws IllegalStateException if not currently in MONITORING state or already IDLE
+     * @throws IllegalStateException if not currently in MONITORING state
      */
     public void goToIdleState() {
         if (currentState == State.ATTACKING) {
             throw new IllegalStateException(
-                "Cannot force switch from ATTACKING to IDLE state");
+                "Cannot switch from ATTACKING to IDLE state");
         } else if (currentState == State.IDLE) {
             throw new IllegalStateException(
                 "Already in IDLE state");
@@ -575,235 +442,11 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
     }
 
     /**
-     * Returns the current operational state of the attack.
-     *
-     * <p><b>JML Contract:</b></p>
-     * <pre>{@code
-     *   //@ ensures \result != null;
-     *   //@ ensures \result == currentState;
-     * }</pre>
-     *
-     * @return the current {@linkplain State}
-     */
-    public State getAttackState() {
-        return currentState;
-    }
-
-    /**
-     * Returns the current advantage (hidden chain length minus public chain length).
-     * <p>
-     * Calculates the relative advantage as: {@code hiddenChainHeight - publicChainHeight}.
-     * Positive values indicate hidden chain is ahead; zero or negative means it is behind.
-     * This value determines whether the hidden chain should be released via {@code releaseAdvantage}.
-     * </p>
-     *
-     * <p><b>JML Contract:</b></p>
-     * <pre>{@code
-     *   //@ requires node != null;
-     *   //@ requires node.getStructure() != null;
-     *   //@ ensures \result == (hiddenChainTip == null ? 0 : hiddenChainTip.height)
-     *   //                       - longestTip.height;
-     * }</pre>
-     *
-     * @return the advantage in blocks (can be negative if hidden chain is behind)
-     * @throws IllegalStateException if node, blockchain structure, or longest tip is null
-     */
-    public int getAdvantage() {
-        if (node == null) {
-            throw new IllegalStateException(
-                "Cannot calculate advantage: BitcoinNode reference is null");
-        }
-
-        if (node.getStructure() == null) {
-            throw new IllegalStateException(
-                "Cannot calculate advantage: blockchain structure is null in node " + node.getID());
-        }
-
-        Block longestTip = node.getStructure().getLongestTip();
-        if (longestTip == null) {
-            throw new IllegalStateException(
-                "Cannot calculate advantage: longest tip is null in node " + node.getID() +
-                " (blockchain may be uninitialized)");
-        }
-
-        int hiddenHeight = (hiddenChainTip == null) ? 0 : hiddenChainTip.getHeight();
-        int publicHeight = (longestTip == null) ? 0 : longestTip.getHeight();
-        return hiddenHeight - publicHeight;
-    }
-
-
-    // ================================
-    // MAIN PRIVATE METHODS
-    // ================================
-
-    /**
-     * Evaluates whether the attack advantage threshold has been reached for release.
-     * <p>
-     * Called after each block completion during ATTACKING state. If the hidden chain
-     * advantage reaches or exceeds the configured {@code releaseAdvantage} threshold,
-     * the hidden chain is automatically released via {@link #releaseChain(long)}.
-     * </p>
-     * <p>
-     * The advantage calculation is: {@code getAdvantage() >= releaseAdvantage}.
-     * For example, if {@code releaseAdvantage = 2}, chain is released once hidden
-     * chain is 2+ blocks ahead of public chain.
-     * </p>
-     *
-     * <p><b>JML Contract:</b></p>
-     * <pre>{@code
-     *   //@ requires currentState == State.ATTACKING;
-     *   //@ ensures (getAdvantage() >= releaseAdvantage) ==> (chain released);
-     * }</pre>
-     *
-     * @param time the current simulation time for chain release broadcast
-     * @throws IllegalStateException if not in ATTACKING state
-     */
-    private void evaluateAttackState(long time) {
-    	
-        if (currentState != State.ATTACKING) {
-            throw new IllegalStateException(
-                "evaluateAttackState() can only be called in ATTACKING state, currently in: " + currentState);
-        }
-
-        if (getAdvantage() >= releaseAdvantage) {
-        	System.err.println("Release Chain");
-            releaseChain(time);
-            
-        }
-    }
-    
-    /**
-     * Initiates the hidden chain attack.
-     * <p>
-     * Called when the target transaction appears in a block during MONITORING state,
-     * or explicitly to begin attack. Transitions to ATTACKING state and sets the
-     * hidden chain tip to the public blockchain's current tip. This method validates
-     * attack parameters ({@code startAdvantage}, {@code releaseAdvantage}, {@code attackPower})
-     * and clears any previous hidden chain state.
-     * </p>
-     * <p>
-     * The node will continue honest operations on the public chain while secretly
-     * mining blocks on the hidden chain, which begins from the current network state.
-     * </p>
-     *
-     * <p><b>JML Contract:</b></p>
-     * <pre>{@code
-     *   //@ requires currentState == State.MONITORING;
-     *   //@ requires startAdvantage != null && releaseAdvantage != null;
-     *   //@ requires attackPower > 0;
-     *   //@ ensures currentState == State.ATTACKING;
-     *   //@ ensures hiddenChain.isEmpty();
-     * }</pre>
-     *
-     * @throws IllegalStateException if attack parameters are invalid or not configured
-     */
-    private void startAttack() {
-        validateAttackParameters();
-
-        hiddenChain.clear();
-        switchToAttackPower();
-        currentState = State.ATTACKING;
-    }
-
-    private void switchToAttackPower() {
-    	if (currentState == State.ATTACKING) {
-    		throw new IllegalStateException("switching to attack power, while already being in Attack stage");
-    	}
-    	honestPower = node.getHashPower();
-		node.setHashPower(attackPower);
-	}
-    
-	/**
-     * Releases the accumulated hidden chain to the network.
-     * <p>
-     * Broadcasts all blocks accumulated in the hidden chain to the network. Each block
-     * is cloned before broadcast to prevent external modification. Upon successful
-     * broadcast, the attack is completed and the node transitions back to IDLE state.
-     * </p>
-     * <p>
-     * The released chain may reorganize the public blockchain if it is longer than
-     * the current main chain. Nodes receiving these blocks will integrate them according
-     * to their consensus rules.
-     * </p>
-     *
-     * <p><b>JML Contract:</b></p>
-     * <pre>{@code
-     *   //@ requires currentState == State.ATTACKING;
-     *   //@ requires hiddenChain != null && hiddenChain.size() > 0;
-     *   //@ ensures currentState == State.IDLE;
-     *   //@ ensures hiddenChain.isEmpty();
-     *   //@ ensures hiddenChainTip == null;
-     * }</pre>
-     *
-     * @param time the current simulation time for broadcast timestamp
-     * @throws IllegalStateException if not in ATTACKING state
-     */
-    private void releaseChain(long time) {
-        if (currentState != State.ATTACKING) {
-            throw new IllegalStateException(
-                "Cannot release chain outside of ATTACKING state, currently in: " + currentState);
-        }
-
-        //Back to normal state
-        currentState = State.IDLE;
-        // Broadcast each hidden block to the network
-        
-        for (Block block : hiddenChain) {
-        	//Pretend this came from a different node:
-        	event_NodeReceivesPropagatedContainer(block);
-        	//... but also propagate to others
-            try {
-                node.broadcastContainer((ITxContainer) block.clone(), time);
-            } catch (CloneNotSupportedException e) {
-                e.printStackTrace();
-            }
-        }
-
-        //Add the hidden chain to your blockchain
-        
-        completeAttack();
-    }
-
-    /**
-     * Finalizes the attack and transitions to IDLE state.
-     * <p>
-     * Clears the hidden chain state and resets attack tracking. This method is called
-     * after the hidden chain has been released to the network via {@link #releaseChain(long)}.
-     * The node returns to normal IDLE state and can be configured for a new attack cycle
-     * if needed.
-     * </p>
-     *
-     * <p><b>JML Contract:</b></p>
-     * <pre>{@code
-     *   //@ requires currentState == State.ATTACKING;
-     *   //@ ensures currentState == State.IDLE;
-     *   //@ ensures hiddenChain.isEmpty();
-     *   //@ ensures hiddenChainTip == null;
-     * }</pre>
-     */
-    private void completeAttack() {
-        hiddenChain.clear();
-        hiddenChainTip = null;
-        switchToNormalPower();
-    }
-
-
-    
-    private void switchToNormalPower() {
-    	if (honestPower == -1) {
-    		throw new IllegalStateException("honestPower uninitialized");
-    	}
-		node.setHashPower(honestPower);
-	}
-
-
-	/**
      * Cancels an ongoing attack without releasing the hidden chain.
      * <p>
-     * Discards all accumulated blocks in the hidden chain and returns to IDLE state
-     * without broadcasting any data to the network. This method is called when attack
-     * conditions are no longer favorable (e.g., public chain outpaces hidden chain).
-     * Call this to abandon an attack silently.
+     * Discards all accumulated hidden blocks and returns to IDLE state without
+     * broadcasting anything to the network. Called when attack conditions are no
+     * longer favorable (e.g., the public chain has outpaced the hidden chain).
      * </p>
      *
      * <p><b>JML Contract:</b></p>
@@ -821,210 +464,298 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
     }
 
 
-
-
     // ================================
-    // HELPER METHODS
-    // ================================
-
-    // (None currently - all helper logic is in main private methods)
-
-
-    // ================================
-    // DEBUG/PRINT/TOSTRING METHODS
+    // PRIVATE ATTACK METHODS
     // ================================
 
     /**
-     * Returns a string representation of the attack behavior state.
-     *
-     * <p><b>Format:</b></p>
-     * <pre>
-     * HiddenChainAttackBehavior{
-     *     currentState=ATTACKING,
-     *     attackPower=1.5,
-     *     targetTransaction=42,
-     *     startAdvantage=-2,
-     *     releaseAdvantage=2,
-     *     advantage=1,
-     *     hiddenChainLength=5
-     * }
-     * </pre>
-     *
-     * @return formatted string with attack state, configuration, and current metrics
-     */
-    @Override
-    public String toString() {
-        return "HiddenChainAttackBehavior{" +
-                "currentState=" + currentState +
-                ", attackPower=" + attackPower +
-                ", targetTransaction=" + targetTransaction +
-                ", startAdvantage=" + startAdvantage +
-                ", releaseAdvantage=" + releaseAdvantage +
-                ", advantage=" + getAdvantage() +
-                ", hiddenChainLength=" + hiddenChain.size() +
-                '}';
-    }
-
-
-    // ================================
-    // SETTERS AND GETTERS
-    // ================================
-
-    /**
-     * Sets the attacker's mining power relative to network participants.
+     * Evaluates whether the attack can start and initiates it if conditions are met.
+     * <p>
+     * Called in MONITORING state when the target transaction appears in a block.
+     * The attack starts when the attacker's current advantage has reached (or fallen
+     * to) the configured start threshold: {@code getAdvantage() <= startAdvantage}.
+     * </p>
+     * <p>
+     * Example: if {@code startAdvantage = -2}, the attack starts once the attacker
+     * is 2 blocks behind the longest public chain tip.
+     * </p>
      *
      * <p><b>JML Contract:</b></p>
      * <pre>{@code
-     *   //@ requires power > 0;
-     *   //@ ensures this.attackPower == power;
+     *   //@ requires currentState == State.MONITORING;
+     *   //@ requires startAdvantage != null;
      * }</pre>
      *
-     * @param power the mining power multiplier (must be positive)
-     * @throws IllegalArgumentException if {@code power <= 0}
+     * @throws IllegalStateException if called in IDLE or ATTACKING state, or if
+     *                               {@code startAdvantage} is not configured
      */
-    public void setAttackPower(float power) {
-        if (power <= 0) {
-            throw new IllegalArgumentException(
-                "Attack power must be positive, got: " + power);
+    private void considerAttacking() {
+        if (currentState == State.IDLE) {
+            throw new IllegalStateException("Should not consider attacking in IDLE state");
         }
-        this.attackPower = power;
+        if (currentState == State.ATTACKING) {
+            throw new IllegalStateException(
+                "Should not consider attacking in ATTACKING state; behavior is already in that mode");
+        }
+        if (startAdvantage == null) {
+            throw new IllegalStateException(
+                "startAdvantage must be configured before considering attack");
+        }
+
+        if (getAdvantage() <= startAdvantage) {
+            startAttack();
+        }
     }
 
     /**
-     * Returns the attacker's mining power.
-     *
-     * <p><b>JML Contract:</b></p>
-     * <pre>{@code
-     *   //@ ensures \result > 0;
-     *   //@ ensures \result == this.attackPower;
-     * }</pre>
-     *
-     * @return the mining power multiplier
-     */
-    public float getAttackPower() {
-        return attackPower;
-    }
-
-    /**
-     * Sets the target transaction for the attack (double-spend or orphan).
-     *
-     * <p><b>JML Contract:</b></p>
-     * <pre>{@code
-     *   //@ requires txID >= -1;
-     *   //@ ensures this.targetTransaction == txID;
-     * }</pre>
-     *
-     * @param txID the transaction ID to target (-1 for no specific target)
-     */
-    public void setTargetTransaction(long txID) {
-        this.targetTransaction = txID;
-    }
-
-    /**
-     * Returns the target transaction for the attack.
-     *
-     * <p><b>JML Contract:</b></p>
-     * <pre>{@code
-     *   //@ ensures \result == this.targetTransaction;
-     * }</pre>
-     *
-     * @return the target transaction ID (-1 if no target)
-     */
-    public long getTargetTransaction() {
-        return targetTransaction;
-    }
-
-    /**
-     * Sets the initial disadvantage threshold (blocks behind) that triggers attack.
+     * Initiates the hidden chain attack.
      * <p>
-     * This is the node's starting position relative to the network. Typically a
-     * negative number (e.g., -2 means "start 2 blocks behind"). Must be set before
-     * entering MONITORING state.
+     * Validates attack parameters, clears any previous hidden chain state, switches
+     * the node to attack hash power, and transitions to ATTACKING state. From this
+     * point, validated blocks are added to the hidden chain rather than the public
+     * blockchain.
      * </p>
      *
      * <p><b>JML Contract:</b></p>
      * <pre>{@code
-     *   //@ requires startAdv != null;
-     *   //@ ensures this.startAdvantage == startAdv;
+     *   //@ requires currentState == State.MONITORING;
+     *   //@ requires startAdvantage != null && releaseAdvantage != null;
+     *   //@ requires attackPower > 0;
+     *   //@ ensures currentState == State.ATTACKING;
+     *   //@ ensures hiddenChain.isEmpty();
      * }</pre>
      *
-     * @param startAdv the initial advantage threshold (typically negative)
+     * @throws IllegalStateException if attack parameters are invalid or not configured
      */
-    public void setStartAdvantage(Integer startAdv) {
-        this.startAdvantage = startAdv;
+    private void startAttack() {
+        validateAttackParameters();
+        hiddenChain.clear();
+        switchToAttackPower();
+        currentState = State.ATTACKING;
     }
 
     /**
-     * Returns the initial disadvantage threshold.
+     * Stores the node's current hash power and switches to attack hash power.
      *
      * <p><b>JML Contract:</b></p>
      * <pre>{@code
-     *   //@ ensures \result == this.startAdvantage;
+     *   //@ requires currentState != State.ATTACKING;
      * }</pre>
      *
-     * @return the start advantage threshold (null if not set)
+     * @throws IllegalStateException if already in ATTACKING state
      */
-    public Integer getStartAdvantage() {
-        return startAdvantage;
+    private void switchToAttackPower() {
+        if (currentState == State.ATTACKING) {
+            throw new IllegalStateException("Switching to attack power while already in ATTACKING state");
+        }
+        honestPower = node.getHashPower();
+        node.setHashPower(attackPower);
     }
 
     /**
-     * Sets the advantage threshold that triggers hidden chain release.
+     * Restores the node's hash power to its pre-attack value.
+     *
+     * <p><b>JML Contract:</b></p>
+     * <pre>{@code
+     *   //@ requires honestPower != -1;
+     * }</pre>
+     *
+     * @throws IllegalStateException if {@code honestPower} was never stored (attack never started)
+     */
+    private void switchToNormalPower() {
+        if (honestPower == -1) {
+            throw new IllegalStateException("honestPower uninitialized");
+        }
+        node.setHashPower(honestPower);
+    }
+
+    /**
+     * Adds a validated block to the hidden chain during ATTACKING state.
      * <p>
-     * When {@code getAdvantage() >= releaseAdvantage}, the hidden chain is released.
-     * Typically zero or positive (e.g., 2 means "release when 2 blocks ahead").
-     * Must be set before entering MONITORING state. Zero reproduces Nakamoto probabilities.
+     * Intercepts the block from the honest validation path, records validation
+     * metadata, sets the block's parent to the current hidden chain tip, and
+     * appends it to the hidden chain. Updates the hidden chain tip and restarts
+     * mining on the next hidden block.
      * </p>
      *
      * <p><b>JML Contract:</b></p>
      * <pre>{@code
-     *   //@ requires relAdv != null;
-     *   //@ ensures this.releaseAdvantage == relAdv;
+     *   //@ requires c != null && c instanceof Block;
+     *   //@ requires time >= 0;
+     *   //@ requires currentState == State.ATTACKING;
+     *   //@ ensures hiddenChainTip == c;
+     *   //@ ensures hiddenChain.contains(c);
+     *   //@ ensures ((Block) c).getParent() == old(hiddenChainTip);
      * }</pre>
      *
-     * @param relAdv the release advantage threshold (typically zero or positive)
+     * @param c    the block to add to the hidden chain (must not be null)
+     * @param time the current simulation time
      */
-    public void setReleaseAdvantage(Integer relAdv) {
-        this.releaseAdvantage = relAdv;
+    private void nodeCompletesMaliciousValidation(ITxContainer c, long time) {
+        Objects.requireNonNull(c, "Container cannot be null");
+        if (!(c instanceof Block)) {
+            throw new IllegalArgumentException(
+                "Expected Block instance, got: " + c.getClass().getSimpleName());
+        }
+        if (time < 0) throw new IllegalArgumentException("Time cannot be negative: " + time);
+
+        Block block = (Block) c;
+
+        // Add validation metadata to the block
+        block.validateBlock(node.getMiningPool(),
+                Simulation.currTime,
+                System.currentTimeMillis() - Simulation.sysStartTime,
+                node.getID(),
+                "Node Completes Malicious Validation",
+                node.getOperatingDifficulty(),
+                node.getProspectiveCycles());
+
+        // Run default post-validation actions (cycle stats etc.)
+        node.completeValidation(node.getMiningPool(), time);
+
+        // Report the validation event
+        BitcoinReporter.reportBlockEvent(
+                Simulation.currentSimulationID,
+                block.getSimTime_validation(),
+                block.getSysTime_validation(),
+                block.getValidationNodeID(),
+                block.getID(), ((block.getParent() == null) ? -1 : block.getParent().getID()),
+                block.getHeight(),
+                block.printIDs(";"),
+                "Node Completes Validation",
+                block.getValidationDifficulty(),
+                block.getValidationCycles());
+
+        // Link block to current hidden chain tip
+        block.setParent(hiddenChainTip);
+
+        // Height is 1 if first hidden block (tip was null), otherwise tip height + 1
+        int blockHeight = (hiddenChainTip == null) ? 1 : hiddenChainTip.getHeight() + 1;
+        block.setHeight(blockHeight);
+
+        // Advance the hidden chain tip
+        hiddenChainTip = block;
+        hiddenChain.add(block);
+        System.err.println("Adding " + block.getID() + " to point to " + block.getParent().getID());
+
+        processPostValidationActivities(time);
     }
 
     /**
-     * Returns the release advantage threshold.
+     * Performs cleanup and re-initialization steps following hidden block validation.
+     * <p>
+     * Stops mining, resets the next validation event, removes validated transactions
+     * from the mining pool, reconstructs the pool, and reconsiders whether to continue
+     * mining the next hidden block.
+     * </p>
      *
-     * <p><b>JML Contract:</b></p>
-     * <pre>{@code
-     *   //@ ensures \result == this.releaseAdvantage;
-     * }</pre>
-     *
-     * @return the release advantage threshold (null if not set)
+     * @param time the current simulation time
      */
-    public Integer getReleaseAdvantage() {
-        return releaseAdvantage;
+    protected void processPostValidationActivities(long time) {
+        // Stop mining for now
+        node.stopMining();
+        // Reset the next validation event
+        node.resetNextValidationEvent();
+        // Remove validated transactions from the mining pool
+        node.removeFromPool(node.getMiningPool());
+        // Reconstruct the mining pool with remaining transactions
+        honestBehavior.reconstructMiningPool();
+        // Reconsider whether to mine the next hidden block
+        considerMining(time);
     }
 
     /**
-     * Returns the wrapped honest behavior strategy.
+     * Evaluates whether the release advantage threshold has been reached.
+     * <p>
+     * Called after each hidden block is added. If the advantage is sufficient
+     * ({@code getAdvantage() >= releaseAdvantage}), the hidden chain is released.
+     * </p>
      *
      * <p><b>JML Contract:</b></p>
      * <pre>{@code
-     *   //@ ensures \result != null;
-     *   //@ ensures \result == this.honestBehavior;
+     *   //@ requires currentState == State.ATTACKING;
      * }</pre>
      *
-     * @return the {@linkplain HonestNodeBehavior} instance
+     * @param time the current simulation time for chain release broadcast
+     * @throws IllegalStateException if not in ATTACKING state
      */
-    public HonestNodeBehavior getHonestBehavior() {
-        return honestBehavior;
+    private void evaluateAttackState(long time) {
+        if (currentState != State.ATTACKING) {
+            throw new IllegalStateException(
+                "evaluateAttackState() can only be called in ATTACKING state, currently in: " + currentState);
+        }
+
+        if (getAdvantage() >= releaseAdvantage) {
+            releaseChain(time);
+        }
     }
 
-    
-    public void setHonestBehavior(HonestNodeBehavior honestBehavior) {
-		this.honestBehavior = honestBehavior;
-	}
+    /**
+     * Releases the accumulated hidden chain to the network.
+     * <p>
+     * Transitions to IDLE state, then broadcasts each block in the hidden chain
+     * to the network (both receiving it locally and cloning it for propagation).
+     * Upon completion, calls {@link #completeAttack()} to finalize cleanup.
+     * </p>
+     * <p>
+     * The released chain may reorganize the public blockchain if it is longer than
+     * the current main chain.
+     * </p>
+     *
+     * <p><b>JML Contract:</b></p>
+     * <pre>{@code
+     *   //@ requires currentState == State.ATTACKING;
+     *   //@ requires !hiddenChain.isEmpty();
+     *   //@ ensures currentState == State.IDLE;
+     *   //@ ensures hiddenChain.isEmpty();
+     *   //@ ensures hiddenChainTip == null;
+     * }</pre>
+     *
+     * @param time the current simulation time for broadcast timestamp
+     * @throws IllegalStateException if not in ATTACKING state
+     */
+    private void releaseChain(long time) {
+        if (currentState != State.ATTACKING) {
+            throw new IllegalStateException(
+                "Cannot release chain outside of ATTACKING state, currently in: " + currentState);
+        }
 
-    // ================================
-    // VALIDATOR METHODS
-    // ================================
+        // Transition to IDLE before broadcasting so received blocks are processed honestly
+        currentState = State.IDLE;
+
+        for (Block block : hiddenChain) {
+            // Process the block locally as if received from another node
+            event_NodeReceivesPropagatedContainer(block);
+            // Propagate a clone to the rest of the network
+            try {
+                node.broadcastContainer((ITxContainer) block.clone(), time);
+            } catch (CloneNotSupportedException e) {
+                e.printStackTrace();
+            }
+        }
+
+        completeAttack();
+    }
+
+    /**
+     * Finalizes the attack after chain release.
+     * <p>
+     * Clears hidden chain state, resets the hidden chain tip, and restores the
+     * node's normal hash power. Called by {@link #releaseChain(long)} after all
+     * hidden blocks have been broadcast.
+     * </p>
+     *
+     * <p><b>JML Contract:</b></p>
+     * <pre>{@code
+     *   //@ ensures hiddenChain.isEmpty();
+     *   //@ ensures hiddenChainTip == null;
+     * }</pre>
+     */
+    private void completeAttack() {
+        hiddenChain.clear();
+        hiddenChainTip = null;
+        switchToNormalPower();
+    }
 
     /**
      * Validates that all required attack parameters are properly configured.
@@ -1032,11 +763,11 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
      * Checks:
      * <ul>
      *   <li>{@code attackPower > 0}: Mining capability must be positive.</li>
-     *   <li>{@code startAdvantage != null}: Initial position must be set.</li>
+     *   <li>{@code startAdvantage != null}: Start threshold must be set.</li>
      *   <li>{@code releaseAdvantage != null}: Release threshold must be set.</li>
      *   <li>{@code releaseAdvantage >= startAdvantage}: Release should be achievable.</li>
      * </ul>
-     * Warnings are logged for unusual configurations (positive start, negative release, etc).
+     * Warnings are logged for unusual but technically valid configurations.
      * </p>
      *
      * <p><b>JML Contract:</b></p>
@@ -1085,38 +816,265 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
 
 
     // ================================
-    // INNER ENUMS
+    // GETTERS AND SETTERS
     // ================================
 
     /**
-     * Enumeration of attack operational states.
+     * Returns the current operational state of the attack.
+     *
+     * <p><b>JML Contract:</b></p>
+     * <pre>{@code
+     *   //@ ensures \result != null;
+     *   //@ ensures \result == currentState;
+     * }</pre>
+     *
+     * @return the current {@linkplain State}
      */
-    public enum State {
-        /**
-         * Normal honest operation; no attack in progress.
-         */
-        IDLE,
-
-        /**
-         * In watch for attack trigger.
-         * Node operates honestly while monitoring.
-         */
-        MONITORING,
-
-        /**
-         * Actively mining a hidden chain while maintaining public honest appearance.
-         */
-        ATTACKING
+    public State getAttackState() {
+        return currentState;
     }
-    
-    
+
+    /**
+     * Returns the current advantage (hidden chain height minus public chain height).
+     * <p>
+     * Positive values indicate the hidden chain is ahead; zero or negative means it
+     * is behind. This value determines whether to release the hidden chain.
+     * </p>
+     *
+     * <p><b>JML Contract:</b></p>
+     * <pre>{@code
+     *   //@ requires node != null;
+     *   //@ requires node.getStructure() != null;
+     *   //@ requires node.getStructure().getLongestTip() != null;
+     *   //@ ensures \result == (hiddenChainTip == null ? 0 : hiddenChainTip.height)
+     *   //                       - longestTip.height;
+     * }</pre>
+     *
+     * @return the advantage in blocks (can be negative if hidden chain is behind)
+     * @throws IllegalStateException if node, blockchain structure, or longest tip is null
+     */
+    public int getAdvantage() {
+        if (node == null) {
+            throw new IllegalStateException(
+                "Cannot calculate advantage: BitcoinNode reference is null");
+        }
+        if (node.getStructure() == null) {
+            throw new IllegalStateException(
+                "Cannot calculate advantage: blockchain structure is null in node " + node.getID());
+        }
+
+        Block longestTip = node.getStructure().getLongestTip();
+        if (longestTip == null) {
+            throw new IllegalStateException(
+                "Cannot calculate advantage: longest tip is null in node " + node.getID() +
+                " (blockchain may be uninitialized)");
+        }
+
+        int hiddenHeight = (hiddenChainTip == null) ? 0 : hiddenChainTip.getHeight();
+        int publicHeight = longestTip.getHeight();
+        return hiddenHeight - publicHeight;
+    }
+
+    /**
+     * Sets the attacker's mining power.
+     *
+     * <p><b>JML Contract:</b></p>
+     * <pre>{@code
+     *   //@ requires power > 0;
+     *   //@ ensures this.attackPower == power;
+     * }</pre>
+     *
+     * @param power the mining power in trials per time unit (must be positive)
+     * @throws IllegalArgumentException if {@code power <= 0}
+     */
+    public void setAttackPower(float power) {
+        if (power <= 0) {
+            throw new IllegalArgumentException(
+                "Attack power must be positive, got: " + power);
+        }
+        this.attackPower = power;
+    }
+
+    /**
+     * Returns the attacker's mining power.
+     *
+     * <p><b>JML Contract:</b></p>
+     * <pre>{@code
+     *   //@ ensures \result == this.attackPower;
+     * }</pre>
+     *
+     * @return the mining power in trials per time unit
+     */
+    public float getAttackPower() {
+        return attackPower;
+    }
+
+    /**
+     * Sets the target transaction for the attack.
+     *
+     * <p><b>JML Contract:</b></p>
+     * <pre>{@code
+     *   //@ requires txID >= -1;
+     *   //@ ensures this.targetTransaction == txID;
+     * }</pre>
+     *
+     * @param txID the transaction ID to target (-1 for no specific target)
+     */
+    public void setTargetTransaction(long txID) {
+        this.targetTransaction = txID;
+    }
+
+    /**
+     * Returns the target transaction ID.
+     *
+     * <p><b>JML Contract:</b></p>
+     * <pre>{@code
+     *   //@ ensures \result == this.targetTransaction;
+     * }</pre>
+     *
+     * @return the target transaction ID (-1 if no target set)
+     */
+    public long getTargetTransaction() {
+        return targetTransaction;
+    }
+
+    /**
+     * Sets the advantage threshold that triggers attack start.
+     * <p>
+     * Typically zero or negative. For example, -2 means "start when 2 blocks behind".
+     * The attack starts when {@code getAdvantage() <= startAdvantage}.
+     * Must be set before entering MONITORING state.
+     * </p>
+     *
+     * <p><b>JML Contract:</b></p>
+     * <pre>{@code
+     *   //@ ensures this.startAdvantage == startAdv;
+     * }</pre>
+     *
+     * @param startAdv the start advantage threshold (typically zero or negative)
+     */
+    public void setStartAdvantage(Integer startAdv) {
+        this.startAdvantage = startAdv;
+    }
+
+    /**
+     * Returns the start advantage threshold.
+     *
+     * <p><b>JML Contract:</b></p>
+     * <pre>{@code
+     *   //@ ensures \result == this.startAdvantage;
+     * }</pre>
+     *
+     * @return the start advantage threshold (null if not set)
+     */
+    public Integer getStartAdvantage() {
+        return startAdvantage;
+    }
+
+    /**
+     * Sets the advantage threshold that triggers hidden chain release.
+     * <p>
+     * Typically zero or positive. For example, 2 means "release when 2 blocks ahead".
+     * The chain is released when {@code getAdvantage() >= releaseAdvantage}.
+     * Zero reproduces Nakamoto attack probabilities.
+     * Must be set before entering MONITORING state.
+     * </p>
+     *
+     * <p><b>JML Contract:</b></p>
+     * <pre>{@code
+     *   //@ ensures this.releaseAdvantage == relAdv;
+     * }</pre>
+     *
+     * @param relAdv the release advantage threshold (typically zero or positive)
+     */
+    public void setReleaseAdvantage(Integer relAdv) {
+        this.releaseAdvantage = relAdv;
+    }
+
+    /**
+     * Returns the release advantage threshold.
+     *
+     * <p><b>JML Contract:</b></p>
+     * <pre>{@code
+     *   //@ ensures \result == this.releaseAdvantage;
+     * }</pre>
+     *
+     * @return the release advantage threshold (null if not set)
+     */
+    public Integer getReleaseAdvantage() {
+        return releaseAdvantage;
+    }
+
+    /**
+     * Returns the wrapped honest behavior strategy.
+     *
+     * <p><b>JML Contract:</b></p>
+     * <pre>{@code
+     *   //@ ensures \result == this.honestBehavior;
+     * }</pre>
+     *
+     * @return the {@linkplain HonestNodeBehavior} instance
+     */
+    public HonestNodeBehavior getHonestBehavior() {
+        return honestBehavior;
+    }
+
+    /**
+     * Sets the wrapped honest behavior strategy.
+     *
+     * <p><b>JML Contract:</b></p>
+     * <pre>{@code
+     *   //@ ensures this.honestBehavior == honestBehavior;
+     * }</pre>
+     *
+     * @param honestBehavior the honest behavior to wrap (must not be null)
+     */
+    public void setHonestBehavior(HonestNodeBehavior honestBehavior) {
+        this.honestBehavior = honestBehavior;
+    }
+
+
     // ================================
-    // DEBUG PRINT
+    // DEBUG / PRINT
     // ================================
-    /** 
-     * Prints the hidden chain Block IDs starting from hiddenChainTip until {@linkplain Block} parent (retrieved through {@linkplain Block#getParent()}) is null. 
-     * Empty string if hiddenChainTip is already null.  
-     * @return
+
+    /**
+     * Returns a string representation of the attack behavior state.
+     *
+     * <p><b>Format:</b></p>
+     * <pre>
+     * HiddenChainAttackBehavior{
+     *     currentState=ATTACKING,
+     *     attackPower=1.5,
+     *     targetTransaction=42,
+     *     startAdvantage=-2,
+     *     releaseAdvantage=2,
+     *     advantage=1,
+     *     hiddenChainLength=5
+     * }
+     * </pre>
+     *
+     * @return formatted string with attack state, configuration, and current metrics
+     */
+    @Override
+    public String toString() {
+        return "HiddenChainAttackBehavior{" +
+                "currentState=" + currentState +
+                ", attackPower=" + attackPower +
+                ", targetTransaction=" + targetTransaction +
+                ", startAdvantage=" + startAdvantage +
+                ", releaseAdvantage=" + releaseAdvantage +
+                ", advantage=" + getAdvantage() +
+                ", hiddenChainLength=" + hiddenChain.size() +
+                '}';
+    }
+
+    /**
+     * Returns a comma-separated string of block IDs in the hidden chain,
+     * ordered from the chain root to the tip.
+     * Returns an empty string if {@code hiddenChainTip} is null.
+     *
+     * @return block IDs from root to tip, e.g. {@code "5,6,7"}, or {@code ""} if empty
      */
     public String printHiddenChain() {
         if (hiddenChainTip == null) {
@@ -1136,5 +1094,23 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
 
         return result.toString();
     }
-    
+
+
+    // ================================
+    // INNER ENUMS
+    // ================================
+
+    /**
+     * Enumeration of attack operational states.
+     */
+    public enum State {
+        /** Normal honest operation; no attack in progress. */
+        IDLE,
+
+        /** Monitoring the network for attack trigger; node operates honestly. */
+        MONITORING,
+
+        /** Actively mining a hidden chain while maintaining a public honest appearance. */
+        ATTACKING
+    }
 }

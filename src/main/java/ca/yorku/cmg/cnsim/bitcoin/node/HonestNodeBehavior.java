@@ -37,11 +37,11 @@ import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
  */
 public class HonestNodeBehavior extends DefaultNodeBehavior {
 
-	
-	// -----------------------------------------------
-	// CONSTRUCTORS
-	// -----------------------------------------------
-	
+
+    // ================================
+    // CONSTRUCTORS
+    // ================================
+
     /**
      * Constructs an honest node behavior strategy and binds it to a specific
      * {@linkplain BitcoinNode} instance.
@@ -52,16 +52,17 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
         this.node = node;
     }
 
-    
-    // -----------------------------------------------
-    // EVENT HANDLING
-    // -----------------------------------------------
-    
+
+    // ================================
+    // EVENT HANDLERS
+    // ================================
+
     /**
      * Handles transactions received directly from clients.
      * <p>
-     * The node validates and adds the transaction to its pool (if appropriate),
-     * then propagates it to peers. 
+     * The transaction is accepted if it is conflict-free and all its dependencies
+     * are present. If accepted, it is added to the pool and broadcast to peers.
+     * Otherwise it is discarded and the rejection reason is logged.
      * </p>
      *
      * @param t    the received transaction
@@ -69,36 +70,36 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
      */
     @Override
     public void event_NodeReceivesClientTransaction(Transaction t, long time) {
-    	boolean conflictFree = conflictFree(t);
-    	boolean dependenciesPresent = dependenciesPresent(t);
+        boolean conflictFree = conflictFree(t);
+        boolean dependenciesPresent = dependenciesPresent(t);
 
-    	if (conflictFree && dependenciesPresent) {
-    		//Transaction can be added and broadcasted
-            transactionReceipt(t,time);
-            node.broadcastTransaction(t,time);
-    	} else {
-    		//Dependencies and/or conflict constraints not satisfied - discard
-    		String msg = (dependenciesPresent ? " " : " dependencies not satisfied ") +
-    				(conflictFree? " " : " conflicts present");
-    		BitcoinReporter.addEvent(
-				Simulation.currentSimulationID,
-				-1,
-				Simulation.currTime,
-				System.currentTimeMillis() - Simulation.sysStartTime,
-				"Discarding Tx due to: " + msg,
-    			node.getID(),
-    			t.getID(),
-    			"");
-    	}
+        if (conflictFree && dependenciesPresent) {
+            // Transaction can be added and broadcast
+            transactionReceipt(t, time);
+            node.broadcastTransaction(t, time);
+        } else {
+            // Dependencies and/or conflict constraints not satisfied - discard
+            String msg = (dependenciesPresent ? " " : " dependencies not satisfied ") +
+                         (conflictFree ? " " : " conflicts present");
+            BitcoinReporter.addEvent(
+                    Simulation.currentSimulationID,
+                    -1,
+                    Simulation.currTime,
+                    System.currentTimeMillis() - Simulation.sysStartTime,
+                    "Discarding Tx due to: " + msg,
+                    node.getID(),
+                    t.getID(),
+                    "");
+        }
     }
-    
 
     /**
      * Handles transactions propagated from other nodes.
      * <p>
-     * The node accepts new transactions not already present in its pool or
-     * blockchain, adding them to its local pool and reconsidering whether to
-     * initiate mining.
+     * The transaction is accepted if it is conflict-free, all its dependencies are
+     * present, and it is not already in the pool or blockchain structure. If
+     * accepted, it is added to the pool and mining is reconsidered. Otherwise it
+     * is discarded and the rejection reason is logged.
      * </p>
      *
      * @param t    the propagated transaction
@@ -106,153 +107,154 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
      */
     @Override
     public void event_NodeReceivesPropagatedTransaction(Transaction t, long time) {
-    	
-    	boolean conflictFree = conflictFree(t);
-    	boolean dependenciesPresent = dependenciesPresent(t);
-    	boolean containedInPool = node.getPool().contains(t);
-    	boolean containedInStructure = node.getStructure().contains(t);
+        boolean conflictFree = conflictFree(t);
+        boolean dependenciesPresent = dependenciesPresent(t);
+        boolean containedInPool = node.getPool().contains(t);
+        boolean containedInStructure = node.getStructure().contains(t);
 
-    	if (conflictFree && dependenciesPresent) {
-    		if (!containedInPool && !containedInStructure) {
-    			//The transaction can be received
-                transactionReceipt(t,time);
+        if (conflictFree && dependenciesPresent) {
+            if (!containedInPool && !containedInStructure) {
+                // Transaction can be received
+                transactionReceipt(t, time);
             } else {
-            	//The transaction is already in the structure or pool
-            	String msg = (containedInPool ? " pool, ": "") + (containedInStructure ? " structure." : "");
-        		BitcoinReporter.addEvent(
-        				Simulation.currentSimulationID,
-        				-1,
-        				Simulation.currTime,
-        				System.currentTimeMillis() - Simulation.sysStartTime,
-        				"Discarding Tx due to: tx contained in system" + msg,
-            			node.getID(),
-            			t.getID(),
-            			"");
+                // Transaction is already in the pool or blockchain structure
+                String msg = (containedInPool ? " pool, " : "") + (containedInStructure ? " structure." : "");
+                BitcoinReporter.addEvent(
+                        Simulation.currentSimulationID,
+                        -1,
+                        Simulation.currTime,
+                        System.currentTimeMillis() - Simulation.sysStartTime,
+                        "Discarding Tx due to: tx contained in system" + msg,
+                        node.getID(),
+                        t.getID(),
+                        "");
             }
-    	} else {
-    		//Dependencies and/or conflict constraints are not satisfied
-    		String msg = (dependenciesPresent ? " " : " dependencies not satisfied ") +
-    				(conflictFree? " " : " conflicts present");
-    		BitcoinReporter.addEvent(
-				Simulation.currentSimulationID,
-				-1,
-				Simulation.currTime,
-				System.currentTimeMillis() - Simulation.sysStartTime,
-				"Discarding Tx due to: " + msg,
-    			node.getID(),
-    			t.getID(),
-    			"");
-    	}
-    	
-
+        } else {
+            // Dependencies and/or conflict constraints are not satisfied
+            String msg = (dependenciesPresent ? " " : " dependencies not satisfied ") +
+                         (conflictFree ? " " : " conflicts present");
+            BitcoinReporter.addEvent(
+                    Simulation.currentSimulationID,
+                    -1,
+                    Simulation.currTime,
+                    System.currentTimeMillis() - Simulation.sysStartTime,
+                    "Discarding Tx due to: " + msg,
+                    node.getID(),
+                    t.getID(),
+                    "");
+        }
     }
 
-    
     /**
      * Handles reception of a propagated block from another node.
      * <p>
-     * The method validates structural consistency, logs the event using
-     * {@linkplain BitcoinReporter}, and integrates the new block into the
-     * blockchain if not already present.
+     * Logs the reception event, constructs a conflict block to check for
+     * structural conflicts, and validates the block against the local blockchain.
+     * A block is accepted if:
+     * <ul>
+     *   <li>None of its transactions are already in the structure on the chain
+     *       where it would be placed.</li>
+     *   <li>None of its transactions conflict with transactions already in the
+     *       structure.</li>
+     *   <li>All of its transaction dependencies are satisfied by the structure.</li>
+     * </ul>
+     * Accepted blocks are integrated via {@link #handleNewBlockReception(Block)}.
+     * Rejected blocks are logged as errors.
      * </p>
      *
-     * @param t the propagated transaction container (expected to be a {@linkplain Block})
+     * @param t the propagated container (expected to be a {@linkplain Block})
      */
     @Override
     public void event_NodeReceivesPropagatedContainer(ITxContainer t) {
-    	Block b = (Block) t;
+        Block b = (Block) t;
 
-    	// The block is a copy of the block object that was validated by 
-    	// the originating node (see below)
-    	b.setCurrentNodeID(node.getID());
+        // The block is a copy of the block object validated by the originating node
+        b.setCurrentNodeID(node.getID());
         b.setLastBlockEvent("Node Receives Propagated Block");
         b.setValidationCycles(-1.0);
         b.setValidationDifficulty(-1.0);
-     
+
         BitcoinReporter.reportBlockEvent(
-				Simulation.currentSimulationID,
-        		Simulation.currTime,
-        		System.currentTimeMillis()- Simulation.sysStartTime,
-        		b.getCurrentNodeID(),
+                Simulation.currentSimulationID,
+                Simulation.currTime,
+                System.currentTimeMillis() - Simulation.sysStartTime,
+                b.getCurrentNodeID(),
                 b.getID(),
-                ((b.getParent() == null) ? -1 : b.getParent().getID()),b.getHeight(),
+                ((b.getParent() == null) ? -1 : b.getParent().getID()), b.getHeight(),
                 b.printIDs(";"),
-                b.getLastBlockEvent(), 
+                b.getLastBlockEvent(),
                 b.getValidationDifficulty(),
                 b.getValidationCycles());
-        
-        //Create an artificial block that contains all conflicting transactions for b
-        Block cB = getConflictBlock(b);
-                
-        
-        // VALIDATE BLOCK
 
-        if (
-        		!node.getStructure().contains(b) && //No tx of b is in the chain where b is going to sit on 
-        		!node.getStructure().contains(cB) && //No tx of b is in the conflict group
-        		//All tx of b satisfy their dependencies
-        		node.getStructure().satisfiesDependencies(b,node.getSim().getDependencyRegistry()) 
-        		) {
-        	// The block can be accepted
+        // Create an artificial block containing all conflict-group transactions of b
+        Block cB = getConflictBlock(b);
+
+        // VALIDATE BLOCK
+        if (!node.getStructure().contains(b) &&          // no tx of b overlaps the chain it would join
+            !node.getStructure().contains(cB) &&          // no conflicting tx is already in the structure
+            node.getStructure().satisfiesDependencies(b, node.getSim().getDependencyRegistry())) {
+            // Block is valid - accept it
             handleNewBlockReception(b);
         } else {
-            //Discard the block and report the event.
-        	String msg = "";
-        	if (node.getStructure().contains(b)) {
-        		msg += "overlap with structure, ";
-        	} 
-        	if (node.getStructure().contains(cB)) {
-        		msg += "conflict with structure, ";
-        	}
-        	if (!node.getStructure().satisfiesDependencies(b,node.getSim().getDependencyRegistry())) {
-        		msg += "not satisfy dependencies, ";
-        	}        
-        	
-        	BitcoinReporter.addErrorEntry("Node::event_NodeReceivesPropagatedContainer: (" + node.getSim().getSimID() + "," + Simulation.currTime + ") Node " + this.node.getID() + " Block " + b.getID() + " containing " + b.printIDs(",") + " received through propagation is found to " + msg + ".");
+            // Block is invalid - discard and log the reason
+            String msg = "";
+            if (node.getStructure().contains(b)) {
+                msg += "overlap with structure, ";
+            }
+            if (node.getStructure().contains(cB)) {
+                msg += "conflict with structure, ";
+            }
+            if (!node.getStructure().satisfiesDependencies(b, node.getSim().getDependencyRegistry())) {
+                msg += "not satisfy dependencies, ";
+            }
+
+            BitcoinReporter.addErrorEntry("Node::event_NodeReceivesPropagatedContainer: (" +
+                    node.getSim().getSimID() + "," + Simulation.currTime + ") Node " + this.node.getID() +
+                    " Block " + b.getID() + " containing " + b.printIDs(",") +
+                    " received through propagation is found to " + msg + ".");
             b.setLastBlockEvent("ERROR: propagated Block discarded");
-        	BitcoinReporter.reportBlockEvent(
-					Simulation.currentSimulationID,
-            		Simulation.currTime,
-            		System.currentTimeMillis() - Simulation.sysStartTime,
-            		b.getCurrentNodeID(),
+            BitcoinReporter.reportBlockEvent(
+                    Simulation.currentSimulationID,
+                    Simulation.currTime,
+                    System.currentTimeMillis() - Simulation.sysStartTime,
+                    b.getCurrentNodeID(),
                     b.getID(),
                     ((b.getParent() == null) ? -1 : b.getParent().getID()),
                     b.getHeight(),
                     b.printIDs(";"),
-                    b.getLastBlockEvent(), 
+                    b.getLastBlockEvent(),
                     b.getValidationDifficulty(),
                     b.getValidationCycles());
-    		
-        	BitcoinReporter.addEvent(
-				Simulation.currentSimulationID,
-				-1,
-				Simulation.currTime,
-				System.currentTimeMillis() - Simulation.sysStartTime,
-				"Discarding Propagated Container due to: " + msg,
-    			node.getID(),
-    			t.getID(),
-    			"");
+
+            BitcoinReporter.addEvent(
+                    Simulation.currentSimulationID,
+                    -1,
+                    Simulation.currTime,
+                    System.currentTimeMillis() - Simulation.sysStartTime,
+                    "Discarding Propagated Container due to: " + msg,
+                    node.getID(),
+                    t.getID(),
+                    "");
         }
     }
-
-
 
     /**
      * Handles completion of block validation by this node.
      * <p>
-     * Upon successful validation, the block is reported, added to the local
-     * blockchain, and propagated to peers. The mining process is reset, and the
-     * node re-evaluates whether to begin mining again.
+     * Records validation metadata, logs the event, runs a sanity check to detect
+     * unexpected overlaps with the existing structure, adds the block to the local
+     * blockchain, broadcasts a clone to peers, and triggers post-validation
+     * activities (mining pool update, mining reconsideration).
      * </p>
      *
-     * @param t    the transaction container (expected to be a {@linkplain Block})
+     * @param t    the validated container (expected to be a {@linkplain Block})
      * @param time the current simulation time
      */
     @Override
     public void event_NodeCompletesValidation(ITxContainer t, long time) {
         Block b = (Block) t;
-        
-        //Add validation information to the block.
+
+        // Record validation metadata on the block
         b.validateBlock(node.getMiningPool(),
                 Simulation.currTime,
                 System.currentTimeMillis() - Simulation.sysStartTime,
@@ -261,175 +263,182 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
                 node.getOperatingDifficulty(),
                 node.getProspectiveCycles());
 
-        //Run default actions (mostly cycle stats)
+        // Run default post-validation actions (cycle stats etc.)
         node.completeValidation(node.getMiningPool(), time);
 
-        //Report the validation event
+        // Report the validation event
         BitcoinReporter.reportBlockEvent(
-				Simulation.currentSimulationID,
-        		b.getSimTime_validation(),
-        		b.getSysTime_validation(),
-        		b.getValidationNodeID(),
-                b.getID(),((b.getParent() == null) ? -1 : b.getParent().getID()),
+                Simulation.currentSimulationID,
+                b.getSimTime_validation(),
+                b.getSysTime_validation(),
+                b.getValidationNodeID(),
+                b.getID(), ((b.getParent() == null) ? -1 : b.getParent().getID()),
                 b.getHeight(),
                 b.printIDs(";"),
                 "Node Completes Validation",
                 b.getValidationDifficulty(),
                 b.getValidationCycles());
-        
-        
-        
-        //SANITY TEST - BEGIN
-        // Check to see if where the block is supposed to go is consistent.
+
+        // SANITY CHECK: verify the validated block does not overlap the structure
         b.setParent(node.getStructure().getLongestTip());
         if (node.getStructure().contains(b)) {
-        	String msg = "Node::event_NodeCompletesValidation: Block " + b.getID() + " containing " + b.printIDs(",") + " just validated is found to overlap with structure: \n" + node.getStructure().printStructure() + " Orphans are: \n:" + node.getStructure().printOrphans() + "\n This should not happen as the node always updates its miningpool to have no overlaps with structure.\n\n";
-        	BitcoinReporter.addErrorEntry(msg);
+            String msg = "Node::event_NodeCompletesValidation: Block " + b.getID() +
+                    " containing " + b.printIDs(",") +
+                    " just validated is found to overlap with structure: \n" +
+                    node.getStructure().printStructure() +
+                    " Orphans are: \n:" + node.getStructure().printOrphans() +
+                    "\n This should not happen as the node always updates its miningpool" +
+                    " to have no overlaps with structure.\n\n";
+            BitcoinReporter.addErrorEntry(msg);
             BitcoinReporter.reportBlockEvent(
-					Simulation.currentSimulationID,
-            		b.getSimTime_validation(),
-            		b.getSysTime_validation()- Simulation.sysStartTime,
-            		b.getValidationNodeID(),
-                    b.getID(),((b.getParent() == null) ? -1 : b.getParent().getID()),
+                    Simulation.currentSimulationID,
+                    b.getSimTime_validation(),
+                    b.getSysTime_validation() - Simulation.sysStartTime,
+                    b.getValidationNodeID(),
+                    b.getID(), ((b.getParent() == null) ? -1 : b.getParent().getID()),
                     b.getHeight(),
                     b.printIDs(";"),
                     "Validating Inconsistent Block (WARNING) - See ERROR log.",
                     b.getValidationDifficulty(),
                     b.getValidationCycles());
         }
-        // SANITY TEST - END
+        // END SANITY CHECK
 
-        // OK now set the parent back to null and let
-        // Structure deal with finding a parent.
+        // Reset parent to null and let Structure find the correct parent during insertion
         b.setParent(null);
         node.getStructure().addToStructure(b);
-        
-        //Propagate a clone of the block to the rest of the network
+
+        // Propagate a clone of the block to the rest of the network
         try {
-			node.broadcastContainer((ITxContainer) b.clone(), time);
-		} catch (CloneNotSupportedException e) {
-			e.printStackTrace();
-		}
-
-        // What now?
-        processPostValidationActivities(time);
-  
-    }
-
-    
-    
-    // -----------------------------------------------------------------------
-    // HELPER METHODS
-    // -----------------------------------------------------------------------
-    
-    protected boolean conflictFree(Transaction t) {
-  	long conflict = node.getSim().getConflictRegistry().getMatch((int) t.getID());
-    	
-    	// Some error checking
-    	if (conflict == -2) throw new IllegalStateException("Conflict for transaction " + t.getID() + " uninitialized");
-    	
-    	// Transaction does not conflict with the pool
-    	boolean conflictFree = 
-    			(conflict == -1) // There is no conflict 
-    			||
-    			!(node.getPool().contains(conflict) 
-    				|| 
-    			  node.getStructure().contains(conflict)
-    				|| 
-    			  node.getMiningPool().contains(conflict))
-    			; //conflict does not overlap 
-    	
-    	return (conflictFree);
-    }
-    
-    
-    /** 
-     * Checks whether all dependencies of the transaction are satisfied in the current structure and pool 
-     * of the node. It calls the method {@code TransactionGroup#satisfiesDependenciesOf_Incl_3rdGroup} 
-     * of the pool, which checks for dependencies in the structure, pool and mining pool.
-     * @param t The transaction to check for dependencies.
-     * @return true if all dependencies are satisfied, false otherwise.
-     */
-    protected boolean dependenciesPresent(Transaction t) {
-    	return(
-    			node.getPool().satisfiesDependenciesOf_Incl_3rdGroup(
-    					t.getID(),
-    					//Check also the entire blockchain structure (as a 3rd group).
-    					node.getStructure().getTransactionGroup(), 
-    					node.getSim().getDependencyRegistry())
-    			);
-    }
-
-    
-    /**
-	 * Extracts conflicting transactions from a given block based on the node's
-	 * conflict registry. The returning transactions are not real but manufactured as stand-ins
-	 * for the real transactions that have the same IDs. 
-	 * 
-	 * Works assuming equality of transactions is defined by ID.
-	 *
-	 * @param b the block to analyze for conflicts
-	 * @return a new block containing only conflicting transactions.
-	 */
-    protected Block getConflictBlock(Block b) { 
-        Block conflictBlock = new Block();
-        for (Transaction r : b.getTransactions()) {
-        	long conflict = node.getSim().getConflictRegistry().getMatch((int) r.getID());
-        	if (conflict != -1) {
-        		conflictBlock.addTransaction(new Transaction(conflict));
-        	}
+            node.broadcastContainer((ITxContainer) b.clone(), time);
+        } catch (CloneNotSupportedException e) {
+            e.printStackTrace();
         }
-        return (conflictBlock);
+
+        processPostValidationActivities(time);
     }
-    
-    
+
+
+    // ================================
+    // HELPER METHODS
+    // ================================
+
     /**
-     * Integrates a newly received block into the node’s blockchain and updates
-     * the transaction pool accordingly.
+     * Returns whether the transaction is free of conflicts with the node's current
+     * pool, mining pool, and blockchain structure.
      * <p>
-     * The mining pool is reconstructed, and mining activity is reconsidered in
-     * light of the updated chain.
+     * Looks up the transaction's conflict partner in the conflict registry and
+     * checks whether that partner is present anywhere in the node's state.
      * </p>
      *
-     * @param b the newly received block
+     * @param t the transaction to check
+     * @return {@code true} if no conflicting transaction is present; {@code false} otherwise
+     * @throws IllegalStateException if the conflict entry for {@code t} is uninitialized
+     */
+    protected boolean conflictFree(Transaction t) {
+        long conflict = node.getSim().getConflictRegistry().getMatch((int) t.getID());
+
+        if (conflict == -2) throw new IllegalStateException(
+                "Conflict for transaction " + t.getID() + " uninitialized");
+
+        // Transaction is conflict-free if no conflict partner exists, or if the
+        // conflict partner is absent from the pool, structure, and mining pool
+        boolean conflictFree =
+                (conflict == -1)  // no conflict partner registered
+                ||
+                !(node.getPool().contains(conflict)
+                  || node.getStructure().contains(conflict)
+                  || node.getMiningPool().contains(conflict));
+
+        return conflictFree;
+    }
+
+    /**
+     * Returns whether all dependencies of the transaction are satisfied.
+     * <p>
+     * Delegates to {@code TransactionGroup#satisfiesDependenciesOf_Incl_3rdGroup},
+     * which checks the pool, mining pool, and the full blockchain structure as a
+     * third group.
+     * </p>
+     *
+     * @param t the transaction to check
+     * @return {@code true} if all dependencies are satisfied; {@code false} otherwise
+     */
+    protected boolean dependenciesPresent(Transaction t) {
+        return node.getPool().satisfiesDependenciesOf_Incl_3rdGroup(
+                t.getID(),
+                // Include the entire blockchain structure as the third dependency group
+                node.getStructure().getTransactionGroup(),
+                node.getSim().getDependencyRegistry());
+    }
+
+    /**
+     * Builds a synthetic block containing the conflict-group counterparts of each
+     * transaction in {@code b}, based on the node's conflict registry.
+     * <p>
+     * The returned transactions are manufactured stand-ins (same ID only); they are
+     * not the real transaction objects. Transaction equality is assumed to be
+     * determined by ID.
+     * </p>
+     *
+     * @param b the block whose transactions are examined for conflicts
+     * @return a new {@linkplain Block} containing one stand-in transaction per
+     *         conflicting transaction in {@code b}; empty if none conflict
+     */
+    protected Block getConflictBlock(Block b) {
+        Block conflictBlock = new Block();
+        for (Transaction r : b.getTransactions()) {
+            long conflict = node.getSim().getConflictRegistry().getMatch((int) r.getID());
+            if (conflict != -1) {
+                conflictBlock.addTransaction(new Transaction(conflict));
+            }
+        }
+        return conflictBlock;
+    }
+
+    /**
+     * Integrates a newly received block into the node's blockchain and updates
+     * the transaction pool accordingly.
+     * <p>
+     * Adds the block to the structure, removes its transactions from the pool,
+     * reconstructs the mining pool, and reconsiders whether to mine.
+     * </p>
+     *
+     * @param b the newly received and validated block
      */
     void handleNewBlockReception(Block b) {
-    	//Add block to blockchain
+        // Add block to the blockchain
         node.getStructure().addToStructure(b);
-        //Remove block transactions from pool.
-        //Conflicts are not supposed to be there anyway as the pool is guarded.
+        // Remove block's transactions from the pool
+        // (conflicts are not expected to be there since the pool is guarded)
         node.getPool().extractGroup(b);
-        // Reconstruct mining pool based on the new information.
+        // Rebuild the mining pool based on the updated state
         reconstructMiningPool();
-        //Consider starting or stopping mining.
+        // Reconsider whether to start or stop mining
         considerMining(Simulation.currTime);
     }
 
-    
     /**
      * Performs cleanup and re-initialization steps following successful block
      * validation.
      * <p>
-     * The node stops mining, clears pending validation events, removes validated
-     * transactions from its pool, and decides whether to restart mining based on
-     * remaining transactions.
+     * Stops mining, resets the pending validation event, removes the validated
+     * transactions from the mining pool, reconstructs the pool, and reconsiders
+     * whether to restart mining.
      * </p>
-     * <p><b>TODO:</b> Clarify the rationale for resetting mining and events post-validation.</p>
      *
      * @param time the current simulation time
      */
     void processPostValidationActivities(long time) {
-        //Stop mining for now.
+        // Stop mining for now
         node.stopMining();
-        //Reset the next validation event.
+        // Reset the next validation event
         node.resetNextValidationEvent();
-        //Remove the block's transactions from the mining pool.
+        // Remove validated transactions from the mining pool
         node.removeFromPool(node.getMiningPool());
-        //Reconstruct mining pool, with whatever other transactions are there.
+        // Reconstruct the mining pool with remaining transactions
         reconstructMiningPool();
-        //Consider if it is worth mining.
+        // Reconsider whether it is worth mining
         considerMining(time);
     }
-
-
 }
