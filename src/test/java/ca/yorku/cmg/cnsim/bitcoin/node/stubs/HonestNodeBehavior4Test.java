@@ -3,6 +3,7 @@ package ca.yorku.cmg.cnsim.bitcoin.node.stubs;
 import ca.yorku.cmg.cnsim.bitcoin.node.BitcoinNode;
 import ca.yorku.cmg.cnsim.bitcoin.node.HonestNodeBehavior;
 import ca.yorku.cmg.cnsim.bitcoin.structure.Block;
+import ca.yorku.cmg.cnsim.bitcoin.testutils.TestTutorial;
 import ca.yorku.cmg.cnsim.engine.config.Config;
 import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
 import ca.yorku.cmg.cnsim.engine.transaction.TxValuePerSizeComparator;

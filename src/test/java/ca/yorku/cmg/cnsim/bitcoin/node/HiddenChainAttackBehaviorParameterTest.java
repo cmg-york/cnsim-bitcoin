@@ -1,6 +1,7 @@
 package ca.yorku.cmg.cnsim.bitcoin.node;
 
 import ca.yorku.cmg.cnsim.bitcoin.node.stubs.BitcoinNode4Test;
+import ca.yorku.cmg.cnsim.bitcoin.node.stubs.HonestNodeBehavior4Test;
 import ca.yorku.cmg.cnsim.bitcoin.node.stubs.Simulation4Test;
 import ca.yorku.cmg.cnsim.engine.Simulation;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,7 +37,7 @@ public class HiddenChainAttackBehaviorParameterTest {
         // Create test simulation and node
         sim = new Simulation4Test(1);
         node = new BitcoinNode4Test(sim);
-        behavior = new HiddenChainAttackBehavior(node);
+        behavior = new HiddenChainAttackBehavior(node, new HonestNodeBehavior4Test(node));
     }
 
     // ================================
@@ -52,8 +53,8 @@ public class HiddenChainAttackBehaviorParameterTest {
     public void testConstructor_NullNode_ThrowsNullPointerException() {
         assertThrows(
             NullPointerException.class,
-            () -> new HiddenChainAttackBehavior(null),
-            "Constructor should throw NullPointerException when node is null");
+            () -> new HiddenChainAttackBehavior(null,null),
+            "Constructor should throw NullPointerException when parameters are null");
     }
 
     /**

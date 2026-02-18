@@ -7,7 +7,16 @@ import java.nio.file.Paths;
 
 public class TestTutorial {
     private static PrintWriter out;
+    private static boolean enabled = true;
+    
+    public static void disableOutput() {
+    	enabled = false;
+    }
 
+    public static void enableOutput() {
+    	enabled = true;
+    }
+    
     public static void start(String fileName) throws IOException {
         Files.createDirectories(Paths.get("target/test-tutorials"));
         out = new PrintWriter(Files.newBufferedWriter(
@@ -15,15 +24,19 @@ public class TestTutorial {
     }
 
     public static void step(String text) {
-        out.println(text);
-        out.println();
+    	if (enabled) {
+    		out.println(text);
+    		out.println();
+    	}
     }
 
     public static void code(String code) {
-        out.println("```");
-        out.println(code);
-        out.println("```");
-        out.println();
+    	if (enabled) {
+	        out.println("```");
+	        out.println(code);
+	        out.println("```");
+	        out.println();
+    	}
     }
 
     public static void close() {
