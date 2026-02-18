@@ -636,7 +636,6 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
         // Advance the hidden chain tip
         hiddenChainTip = block;
         hiddenChain.add(block);
-        System.err.println("Adding " + block.getID() + " to point to " + block.getParent().getID());
 
         processPostValidationActivities(time);
     }
