@@ -55,6 +55,12 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
     private HonestNodeBehavior honestBehavior;
 
     /**
+     * An alternative specialization of honest behavior with useful tweaks
+     */
+    private HonestNodeBehavior altHonestBehavior;
+    
+    
+    /**
      * The current operational state of the attack.
      * Controls whether and how the node participates in hidden chain mining.
      */
@@ -96,6 +102,15 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
      */
     private Integer releaseAdvantage;
 
+
+    
+    /**
+     * When time reaches this point, MONITORING or ATTACKING must cease.
+     * -1 means there is no time out (disabled).
+     */
+    private long attackTimeOut = -1;
+    
+    
     /**
      * Private blockchain maintained by the attacker during ATTACKING state.
      * Contains blocks mined secretly that have not yet been released to the network.
@@ -130,6 +145,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
      * <pre>{@code
      *   //@ requires node != null;
      *   //@ requires beh != null;
+     *   //@ requires altBeh != null;
      *   //@ ensures this.node == node;
      *   //@ ensures currentState == State.IDLE;
      *   //@ ensures hiddenChain != null && hiddenChain.isEmpty();
@@ -138,12 +154,16 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
      *
      * @param node the Bitcoin node to which this behavior is attached (must not be null)
      * @param beh  the honest behavior to wrap and delegate to (must not be null)
+     * @param altBeh a limited version of honest behavior to wrap and delegate to (must not be null)
      * @throws NullPointerException if {@code node} is null
      */
-    public HiddenChainAttackBehavior(BitcoinNode node, HonestNodeBehavior beh) {
+    public HiddenChainAttackBehavior(BitcoinNode node, 
+    		HonestNodeBehavior beh,
+    		HonestNodeBehavior altBeh) {
         Objects.requireNonNull(node, "BitcoinNode cannot be null");
         this.node = node;
         this.honestBehavior = beh;
+        this.altHonestBehavior = altBeh;
         this.currentState = State.IDLE;
         this.hiddenChain = new ArrayList<>();
     }
@@ -185,6 +205,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
         Objects.requireNonNull(t, "Transaction cannot be null");
         if (time < 0) throw new IllegalArgumentException("Time cannot be negative: " + time);
 
+        
         switch (currentState) {
         case IDLE:
             // In IDLE, accept all transactions normally
@@ -199,15 +220,17 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
             break;
 
         case ATTACKING:
-            // In ATTACKING, target transaction should not arrive; other transactions accepted
-            if (t.getID() == targetTransaction) {
-                throw new IllegalStateException(
-                    "Target transaction received during attack (should not occur): " + t.getID());
-            }
-            // Accept non-target transactions to maintain honest appearance
-            honestBehavior.event_NodeReceivesClientTransaction(t, time);
+        	// Accept non-target transactions that do not overlap your hidden chain 
+        	// to maintain honest appearance
+        	if (!inHiddenChain(t)) {
+        		honestBehavior.event_NodeReceivesClientTransaction(t, time);
+        	}
             break;
         }
+        
+    	if (attackTimedOut(time)) {
+    		handleTimeOut(time);
+        } 
     }
 
     /**
@@ -238,7 +261,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
     public void event_NodeReceivesPropagatedTransaction(Transaction t, long time) {
         Objects.requireNonNull(t, "Transaction cannot be null");
         if (time < 0) throw new IllegalArgumentException("Time cannot be negative: " + time);
-
+        
         switch (currentState) {
         case IDLE:
             // In IDLE, handle all propagated transactions normally
@@ -250,6 +273,9 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
             if (t.getID() != targetTransaction) {
                 honestBehavior.event_NodeReceivesPropagatedTransaction(t, time);
             }
+        	if (attackTimedOut(time)) {
+            	completeAttack(time);
+            }
             break;
 
         case ATTACKING:
@@ -258,9 +284,18 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
                 throw new IllegalStateException(
                     "Target transaction propagated during attack (should not occur): " + t.getID());
             }*/
-            honestBehavior.event_NodeReceivesPropagatedTransaction(t, time);
+        	
+        	// Reject the transaction if it is in the hiddenchain
+        	// otherwise do what an honest node would do.
+        	if (!inHiddenChain(t)) {
+        		honestBehavior.event_NodeReceivesPropagatedTransaction(t, time);
+        	}
             break;
         }
+        
+    	if (attackTimedOut(time)) {
+    		handleTimeOut(time);
+        } 
     }
 
     /**
@@ -306,8 +341,10 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
             // In MONITORING, accept blocks and check for target transaction trigger
             honestBehavior.event_NodeReceivesPropagatedContainer(c);
             if (c.contains(targetTransaction)) {
-                if (hiddenChainTip != null) throw new IllegalStateException("hiddenChainTip must be null in MONITORING state.");
-                if (!hiddenChain.isEmpty()) throw new IllegalStateException("hiddenChain must be empty in MONITORING state.");
+                if (hiddenChainTip != null) 
+                	throw new IllegalStateException("hiddenChainTip must be null in MONITORING state.");
+                if (!hiddenChain.isEmpty()) 
+                	throw new IllegalStateException("hiddenChain must be empty in MONITORING state.");
                 // The hidden chain starts from the parent of the block containing the target
                 hiddenChainTip = (Block) ((Block) c).getParent();
                 considerAttacking();
@@ -316,8 +353,8 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
 
         case ATTACKING:
             // In ATTACKING, update the public chain to track attacker's advantage
-            honestBehavior.event_NodeReceivesPropagatedContainer(c);
-            // Note: evaluateAttackState() is called in event_NodeCompletesValidation()
+        	// however use the limited honest behavior in which the pool is not cleared. 
+            altHonestBehavior.event_NodeReceivesPropagatedContainer(c);
             break;
         }
     }
@@ -369,19 +406,60 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
             break;
 
         case ATTACKING:
+            BitcoinReporter.addEvent(
+            		node.getSim().getSimID(),
+            		-1,
+            		Simulation.currTime,
+            		-1,
+            		"Validating Malicious block",
+            		node.getID(),
+            		-1,
+            		"Hidden Chain: " + printHiddenChainAndContent("-") 
+            		);
             // In ATTACKING, intercept block and add to hidden chain
             nodeCompletesMaliciousValidation(c, time);
             // Check whether the release advantage threshold has been reached
-            evaluateAttackState(time);
+           	evaluateAttackState(time);
             break;
         }
+        
+    	if (attackTimedOut(time)) {
+    		handleTimeOut(time);
+        } 
+        
     }
 
     @Override
     protected boolean isWorthMining() {
-        return (node.getMiningPool().getCount() > 0);
+    	if (currentState == State.ATTACKING) {
+    		//If attacking don't be picky, just make sure there are tx's
+    		return (node.getMiningPool().getCount() > 0);
+    	} else
+    		return (super.isWorthMining());
     }
 
+    private void handleTimeOut(long time) {
+        switch (currentState) {
+        case IDLE:
+        	break;
+        case MONITORING: 
+        	//Simply change state.
+        	goToIdleState();
+        	break;
+        case ATTACKING:
+        	completeAttack(time);
+        	break;
+        }
+    	
+    }
+
+    private boolean attackTimedOut(long time) {
+    	if ((attackTimeOut != -1) && (time>=attackTimeOut)) 
+    		return(true);
+    	else
+    		return(false);
+    }
+    
 
     // ================================
     // STATE TRANSITION METHODS
@@ -413,6 +491,17 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
                 "Already in MONITORING state");
         }
         currentState = State.MONITORING;
+        
+        BitcoinReporter.addEvent(
+        		node.getSim().getSimID(),
+        		-1,
+        		Simulation.currTime,
+        		-1,
+        		"Going into Monitoring",
+        		node.getID(),
+        		-1,
+        		"Power: " + node.getHashPower() 
+        		);
     }
 
     /**
@@ -532,6 +621,16 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
         hiddenChain.clear();
         switchToAttackPower();
         currentState = State.ATTACKING;
+        BitcoinReporter.addEvent(
+        		node.getSim().getSimID(),
+        		-1,
+        		Simulation.currTime,
+        		-1,
+        		"Attack is Starting",
+        		node.getID(),
+        		-1,
+        		"Power: " + attackPower
+        		);
     }
 
     /**
@@ -622,7 +721,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
                 block.getID(), ((block.getParent() == null) ? -1 : block.getParent().getID()),
                 block.getHeight(),
                 block.printIDs(";"),
-                "Node Completes Validation",
+                "Node Completes Malicious Validation",
                 block.getValidationDifficulty(),
                 block.getValidationCycles());
 
@@ -685,7 +784,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
         }
 
         if (getAdvantage() >= releaseAdvantage) {
-            releaseChain(time);
+            completeAttack(time);
         }
     }
 
@@ -694,7 +793,6 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
      * <p>
      * Transitions to IDLE state, then broadcasts each block in the hidden chain
      * to the network (both receiving it locally and cloning it for propagation).
-     * Upon completion, calls {@link #completeAttack()} to finalize cleanup.
      * </p>
      * <p>
      * The released chain may reorganize the public blockchain if it is longer than
@@ -713,7 +811,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
      * @param time the current simulation time for broadcast timestamp
      * @throws IllegalStateException if not in ATTACKING state
      */
-    private void releaseChain(long time) {
+    public void completeAttack(long time) {
         if (currentState != State.ATTACKING) {
             throw new IllegalStateException(
                 "Cannot release chain outside of ATTACKING state, currently in: " + currentState);
@@ -722,6 +820,17 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
         // Transition to IDLE before broadcasting so received blocks are processed honestly
         currentState = State.IDLE;
 
+        BitcoinReporter.addEvent(
+        		node.getSim().getSimID(),
+        		-1,
+        		Simulation.currTime,
+        		-1,
+        		"Releaseing chain",
+        		node.getID(),
+        		-1,
+        		"Hidden Chain: " + printHiddenChainAndContent("-") 
+        		);
+        
         for (Block block : hiddenChain) {
             // Process the block locally as if received from another node
             event_NodeReceivesPropagatedContainer(block);
@@ -733,28 +842,12 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
             }
         }
 
-        completeAttack();
-    }
-
-    /**
-     * Finalizes the attack after chain release.
-     * <p>
-     * Clears hidden chain state, resets the hidden chain tip, and restores the
-     * node's normal hash power. Called by {@link #releaseChain(long)} after all
-     * hidden blocks have been broadcast.
-     * </p>
-     *
-     * <p><b>JML Contract:</b></p>
-     * <pre>{@code
-     *   //@ ensures hiddenChain.isEmpty();
-     *   //@ ensures hiddenChainTip == null;
-     * }</pre>
-     */
-    private void completeAttack() {
         hiddenChain.clear();
         hiddenChainTip = null;
         switchToNormalPower();
     }
+
+
 
     /**
      * Validates that all required attack parameters are properly configured.
@@ -813,6 +906,47 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
         }
     }
 
+    
+
+    /**
+     * Determines whether a given transaction is contained in any block of the hidden chain.
+     * <p>
+     * Traverses the hidden chain from tip to root, checking each block for the transaction.
+     * Returns {@code false} immediately if no attack is in progress (i.e., the hidden chain
+     * tip is {@code null}). This method is state-independent: it may be called in any attack
+     * state, but will only return {@code true} while an attack is active and the transaction
+     * has been mined into a hidden block.
+     * </p>
+     *
+     * <p><b>JML Contract:</b></p>
+     * <pre>{@code
+     *   //@ requires tx != null;
+     *   //@ ensures hiddenChainTip == null ==> \result == false;
+     *   //@ ensures (\exists Block b; hiddenChain.contains(b); b.contains(tx))
+     *   //            ==> \result == true;
+     *   //@ ensures (\forall Block b; hiddenChain.contains(b); !b.contains(tx))
+     *   //            ==> \result == false;
+     * }</pre>
+     *
+     * @param tx the transaction to search for (must not be null)
+     * @return {@code true} if {@code tx} is found in any block of the hidden chain;
+     *         {@code false} otherwise, including when no attack is in progress
+     */
+    public boolean inHiddenChain(Transaction tx) {
+        if (hiddenChainTip == null) {
+            return false;
+        }
+
+        Block current = hiddenChainTip;
+        while (current != null) {
+        	if (current.contains(tx)) {
+        		return(true);
+        	}
+            current = (Block) current.getParent();
+        }
+
+        return false;
+    }
 
     // ================================
     // GETTERS AND SETTERS
@@ -1032,6 +1166,47 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
         this.honestBehavior = honestBehavior;
     }
 
+    /**
+     * Sets the simulation time at which an ongoing MONITORING or ATTACKING phase
+     * must be forcibly terminated.
+     * <p>
+     * When the simulation clock reaches this value, {@link #handleTimeOut()} should
+     * be called to abort the attack. A value of {@code -1} (or any sentinel agreed
+     * by the caller) indicates that no timeout is in effect.
+     * </p>
+     *
+     * <p><b>JML Contract:</b></p>
+     * <pre>{@code
+     *   //@ requires timeOut >= 0;
+     *   //@ ensures this.attackTimeOut == timeOut;
+     * }</pre>
+     *
+     * @param timeOut the simulation time (in milliseconds from sim start) after which
+     *                the attack must cease; must be non-negative
+     * @throws IllegalArgumentException if {@code timeOut} is negative
+     */
+    public void setAttackTimeOut(long timeOut) {
+        if (timeOut < 0) {
+            throw new IllegalArgumentException("Attack timeout must be non-negative, got: " + timeOut);
+        }
+        this.attackTimeOut = timeOut;
+    }
+
+    /**
+     * Returns the simulation time at which the current MONITORING or ATTACKING phase
+     * will be forcibly terminated.
+     *
+     * <p><b>JML Contract:</b></p>
+     * <pre>{@code
+     *   //@ ensures \result == this.attackTimeOut;
+     * }</pre>
+     *
+     * @return the timeout value in simulation-time milliseconds
+     */
+    public long getAttackTimeOut() {
+        return attackTimeOut;
+    }
+
 
     // ================================
     // DEBUG / PRINT
@@ -1075,7 +1250,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
      *
      * @return block IDs from root to tip, e.g. {@code "5,6,7"}, or {@code ""} if empty
      */
-    public String printHiddenChain() {
+    public String printHiddenChain(String sep) {
         if (hiddenChainTip == null) {
             return "";
         }
@@ -1085,7 +1260,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
 
         while (current != null) {
             if (result.length() > 0) {
-                result.append(",");
+                result.append(sep);
             }
             result.append(current.getID());
             current = (Block) current.getParent();
@@ -1095,6 +1270,28 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
     }
 
 
+    
+    public String printHiddenChainAndContent(String sep) {
+        if (hiddenChainTip == null) {
+            return "";
+        }
+
+        StringBuilder result = new StringBuilder();
+        Block current = hiddenChainTip;
+
+        while (current != null) {
+            if (result.length() > 0) {
+                result.append(sep);
+            }
+            result.append(current.getID() + " (" + current.printIDs(";") + ")");
+            current = (Block) current.getParent();
+        }
+
+        return result.toString();
+    }
+
+    
+    
     // ================================
     // INNER ENUMS
     // ================================

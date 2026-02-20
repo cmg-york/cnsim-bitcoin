@@ -1,7 +1,9 @@
 package ca.yorku.cmg.cnsim.bitcoin.node;
 
+
 import ca.yorku.cmg.cnsim.engine.Simulation;
 import ca.yorku.cmg.cnsim.engine.config.Config;
+import ca.yorku.cmg.cnsim.engine.exceptions.ConfigurationException;
 import ca.yorku.cmg.cnsim.engine.node.AbstractNodeFactory;
 import ca.yorku.cmg.cnsim.engine.node.IMiner;
 import ca.yorku.cmg.cnsim.engine.node.PoWNodeSet;
@@ -14,8 +16,8 @@ import ca.yorku.cmg.cnsim.engine.node.PoWNodeSet;
  */
 public class BitcoinNodeFactory extends AbstractNodeFactory {
 
-	String defaultNodeType;
-	PoWNodeSet refNs;
+	String defaultNodeBehavior;
+	PoWNodeSet nodeSet;
 
 	/**
 	 * Create a new factory of a specific type (e.g., Honest, Malicious, etc.) based on the sampler embedded in the Simulator object.
@@ -23,17 +25,17 @@ public class BitcoinNodeFactory extends AbstractNodeFactory {
 	 * @param defaultNodeType Is one of a list of strings identifying node type. Currently "Honest" is implemented.
 	 * @param sim The simulator to which the node is attached, and from which sampling services are drawn.
 	 */
-	public BitcoinNodeFactory(String defaultNodeType, Simulation sim){
-		this.defaultNodeType = defaultNodeType;
+	public BitcoinNodeFactory(String defaultNodeBehavior, Simulation sim){
+		this.defaultNodeBehavior = defaultNodeBehavior;
 		this.sim = sim;
 		this.sampler = sim.getSampler();
 	}
 
-	public BitcoinNodeFactory(String defaultNodeType, Simulation sim, PoWNodeSet refNs){
-		this.defaultNodeType = defaultNodeType;
+	public BitcoinNodeFactory(String defaultNodeBehavior, Simulation sim, PoWNodeSet nodes){
+		this.defaultNodeBehavior = defaultNodeBehavior;
 		this.sim = sim;
 		this.sampler = sim.getSampler();
-		this.refNs = refNs;
+		this.nodeSet = nodes;
 	}
 	
 	
@@ -41,7 +43,7 @@ public class BitcoinNodeFactory extends AbstractNodeFactory {
 	 * Create a new node based on the factory.
 	 */
 	@Override
-	public IMiner createNewNode() throws Exception {
+	public IMiner createNewNode() {
 		// First, create a BitcoinNode instance without a behavior strategy
 		BitcoinNode node = new BitcoinNode(sim);
         
@@ -52,36 +54,54 @@ public class BitcoinNodeFactory extends AbstractNodeFactory {
 		node.setSimulation(sim);
 		
 		// Determine and set the appropriate behavior strategy and update hashpower
-		float nodeHashPower;
 		NodeBehaviorStrategy strategy;
-		if (this.defaultNodeType.equals("Malicious")) {
-			strategy = new MaliciousNodeBehavior_Deprecated(node);
-			boolean powerByRatio = Config.getPropertyBoolean("node.maliciousPowerByRatio");
-			if (powerByRatio) {
-				if (this.refNs == null) {
-					throw new Exception("Malicious power by ratio requested but reference honest nodeset not provided.");
-				} else {
-					float powerRatio = Config.getPropertyFloat("node.maliciousRatio");
-					nodeHashPower = powerRatio/(1-powerRatio) * refNs.getTotalHonestHP();
+		
+		
+		switch (defaultNodeBehavior) {
+			case "Hidden Chain Attack" :
+				if (nodeSet == null)
+					throw new IllegalArgumentException("Hidden Chain Attack behavior requires access to honest nodeset. Please insantiate factory with BitcoinNodeFactory(String, Simulation, PoWNodeSet)");
+				strategy = new HiddenChainAttackBehavior(node, 
+		        		new HonestNodeBehavior(node),
+		        		new HonestNodeBehaviorLimited(node));
+				//Configure it
+				((HiddenChainAttackBehavior) strategy).setTargetTransaction(
+						Config.getPropertyLong("hiddenChainAttack.targetTransaction"));
+				((HiddenChainAttackBehavior) strategy).setStartAdvantage(
+						Config.getPropertyInt("hiddenChainAttack.startAdvantage"));
+				((HiddenChainAttackBehavior) strategy).setReleaseAdvantage(
+						Config.getPropertyInt("hiddenChainAttack.releaseAdvantage"));
+				((HiddenChainAttackBehavior) strategy).setAttackPower(
+						getMaliciousPower(
+								Config.getPropertyFloat("hiddenChainAttack.maliciousPowerRatio"),
+								nodeSet.getTotalHashPower()
+								)
+						);
+				
+				if (Config.hasProperty("hiddenChainAttack.attackTimeOut")) {
+					((HiddenChainAttackBehavior) strategy).setAttackTimeOut(
+							Config.getPropertyLong("hiddenChainAttack.attackTimeOut"));
 				}
-			} else { //absolute power
-				nodeHashPower = Config.getPropertyFloat("node.maliciousHashPower");
+				
+				//IMPORTANT: enable the attack.
+				((HiddenChainAttackBehavior) strategy).goToMonitoringState();
+				
+				break;
+	
+			case "Honest":
+				strategy = new HonestNodeBehavior(node);
+				break;
+			
+			default:
+					throw new ConfigurationException("Unknown node behavior " + defaultNodeBehavior);
 			}
 			
-			if (nodeHashPower == -1) {
-				throw new Exception("Error creating malicious node.");
-			} else {
-				node.setHashPower((float) nodeHashPower);
-			}
-			
-			//Set target transaction
-			int targetTx[] = Config.parseStringToIntArray(Config.getPropertyString("workload.sampleTransaction"));
-			((MaliciousNodeBehavior_Deprecated) strategy).setTargetTransaction(targetTx[0]);
-			
-		} else {
-			strategy = new HonestNodeBehavior(node);
-		}
-		node.setBehaviorStrategy(strategy);
+			node.setBehaviorStrategy(strategy);
 		return node;
 	}
+	
+	private float getMaliciousPower(float maliciousPowerRatio, float totalHonestPower) {
+		return((maliciousPowerRatio/(1-maliciousPowerRatio))*totalHonestPower);
+	}
+	
 }
