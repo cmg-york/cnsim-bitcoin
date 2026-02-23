@@ -4,6 +4,7 @@ import ca.yorku.cmg.cnsim.bitcoin.reporter.BitcoinReporter;
 import ca.yorku.cmg.cnsim.bitcoin.structure.Block;
 import ca.yorku.cmg.cnsim.engine.Debug;
 import ca.yorku.cmg.cnsim.engine.Simulation;
+import ca.yorku.cmg.cnsim.engine.event.Event_ContainerValidation;
 import ca.yorku.cmg.cnsim.engine.transaction.ITxContainer;
 import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
 import java.util.ArrayList;
@@ -103,8 +104,15 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
     private Integer releaseAdvantage;
 
 
-    
     /**
+     * The number of confirmations that the target transaction has received, i.e. the number of blocks that
+     * are on top of the block containing the transaction, plus the block itself.
+     * Initially null. 
+     */
+    private Integer releaseConfirmations;
+    
+
+	/**
      * When time reaches this point, MONITORING or ATTACKING must cease.
      * -1 means there is no time out (disabled).
      */
@@ -222,8 +230,8 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
         case ATTACKING:
         	// Accept non-target transactions that do not overlap your hidden chain 
         	// to maintain honest appearance
-        	if (!inHiddenChain(t)) {
-        		honestBehavior.event_NodeReceivesClientTransaction(t, time);
+        	if (!inHiddenChain(t) && !(t.getID() == targetTransaction)) {
+        		altHonestBehavior.event_NodeReceivesClientTransaction(t, time);
         	}
             break;
         }
@@ -262,6 +270,11 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
         Objects.requireNonNull(t, "Transaction cannot be null");
         if (time < 0) throw new IllegalArgumentException("Time cannot be negative: " + time);
         
+        /*
+        if (node.getID() == 30 && (t.getID() == 71 || t.getID() == 72)) {
+        	BitcoinReporter.addErrorEntry("Receiving transaction " + t.getID() + " under state " + getAttackState());
+        }*/
+        
         switch (currentState) {
         case IDLE:
             // In IDLE, handle all propagated transactions normally
@@ -274,7 +287,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
                 honestBehavior.event_NodeReceivesPropagatedTransaction(t, time);
             }
         	if (attackTimedOut(time)) {
-            	completeAttack(time);
+        		handleTimeOut(time);
             }
             break;
 
@@ -287,9 +300,9 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
         	
         	// Reject the transaction if it is in the hiddenchain
         	// otherwise do what an honest node would do.
-        	if (!inHiddenChain(t)) {
-        		honestBehavior.event_NodeReceivesPropagatedTransaction(t, time);
-        	}
+        	if (!inHiddenChain(t) && !(t.getID() == targetTransaction)) {
+        		altHonestBehavior.event_NodeReceivesPropagatedTransaction(t, time);
+        	} 
             break;
         }
         
@@ -355,6 +368,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
             // In ATTACKING, update the public chain to track attacker's advantage
         	// however use the limited honest behavior in which the pool is not cleared. 
             altHonestBehavior.event_NodeReceivesPropagatedContainer(c);
+           	evaluateAttackState(Simulation.currTime);
             break;
         }
     }
@@ -391,9 +405,17 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
         if (!(c instanceof Block)) {
             throw new IllegalArgumentException(
                 "Expected Block instance, got: " + c.getClass().getSimpleName());
-        }
+        } 
         if (time < 0) throw new IllegalArgumentException("Time cannot be negative: " + time);
 
+        /*
+        if ((node.getID() == 30) && (c.contains(71) || (c.contains(72)))) {
+        	Block l = (Block) c;
+            BitcoinReporter.addErrorEntry(Simulation.currTime + ": node 30 completes validation of " + node.getMiningPool().printIDs(";") + " which points to " + (l.getParent() != null ? l.getParent().getID() : "null") + ". State is " + getAttackState());
+        } */
+
+        
+        
         switch (currentState) {
         case IDLE:
             // In IDLE, delegate to honest validation
@@ -492,6 +514,8 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
         }
         currentState = State.MONITORING;
         
+        
+        
         BitcoinReporter.addEvent(
         		node.getSim().getSimID(),
         		-1,
@@ -528,6 +552,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
                 "Already in IDLE state");
         }
         currentState = State.IDLE;
+        //BitcoinReporter.addErrorEntry(Simulation.currTime + ": node going to IDLE");
     }
 
     /**
@@ -550,6 +575,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
         hiddenChain.clear();
         hiddenChainTip = null;
         currentState = State.IDLE;
+        //BitcoinReporter.addErrorEntry(Simulation.currTime + ": node going to IDLE");
     }
 
 
@@ -591,7 +617,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
                 "startAdvantage must be configured before considering attack");
         }
 
-        if (getAdvantage() <= startAdvantage) {
+        if (getCurrentAdvantage() <= startAdvantage) {
             startAttack();
         }
     }
@@ -621,6 +647,9 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
         hiddenChain.clear();
         switchToAttackPower();
         currentState = State.ATTACKING;
+    	//BitcoinReporter.addErrorEntry(Simulation.currTime + ": node going to ATTACK");
+        
+        
         BitcoinReporter.addEvent(
         		node.getSim().getSimID(),
         		-1,
@@ -649,8 +678,39 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
         }
         honestPower = node.getHashPower();
         node.setHashPower(attackPower);
+        rescheduleNextValidation();
     }
 
+    
+    private void rescheduleNextValidation() {
+    	if (node.isMining()) {
+    		Event_ContainerValidation oldValidationEvent = node.getNextValidationEvent();
+    		node.scheduleValidationEvent(new Block(node.getMiningPool().getTransactions()), Simulation.currTime);
+    		
+    		long oldTime = oldValidationEvent.getTime();
+    		long newTime = node.getNextValidationEvent().getTime(); 
+    		
+    		if (oldTime < newTime) {
+    			BitcoinReporter.addErrorEntry("*** STAYING to old validation event (oldtime,newtime) =  (" + oldTime + "," + newTime + ")." );
+    			
+    			node.getNextValidationEvent().ignoreEvt(true);
+    			oldValidationEvent.ignoreEvt(false);
+    			//Go back to the original validation event
+    			node.setNextValidationEvent(oldValidationEvent);
+    			
+    		} else {
+    			BitcoinReporter.addErrorEntry("*** SWITHCING to new validation event (oldtime,newtime) =  (" + oldTime + "," + newTime + ")." );
+    			node.getNextValidationEvent().ignoreEvt(false);
+    			oldValidationEvent.ignoreEvt(true);
+    		}
+    	} else {
+    		if ((node.getNextValidationEvent()!= null) && !node.getNextValidationEvent().ignoreEvt()) {
+    			BitcoinReporter.addErrorEntry("*** VERY STRANGE: node not mining and still has next valiation event!");	
+    		}
+    			
+    	}
+    }
+    
     /**
      * Restores the node's hash power to its pre-attack value.
      *
@@ -783,8 +843,16 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
                 "evaluateAttackState() can only be called in ATTACKING state, currently in: " + currentState);
         }
 
-        if (getAdvantage() >= releaseAdvantage) {
-            completeAttack(time);
+        if (getReleaseStrategy() == ReleaseStrategy.ADVANTAGE) {
+	        if (getCurrentAdvantage() >= getReleaseAdvantage()) {
+	            completeAttack(time);
+	        }
+        } else if (getReleaseStrategy() == ReleaseStrategy.CONFIRMATIONS) {
+	        if ((getCurrentConfirmations() >= getReleaseConfirmations()) && 
+	        (getCurrentAdvantage() >= 1)) {
+	            completeAttack(time);
+	            BitcoinReporter.addErrorEntry("Attack Successful.");
+	        }
         }
     }
 
@@ -819,13 +887,14 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
 
         // Transition to IDLE before broadcasting so received blocks are processed honestly
         currentState = State.IDLE;
-
+        //BitcoinReporter.addErrorEntry(Simulation.currTime + ": node going to IDLE");
+        
         BitcoinReporter.addEvent(
         		node.getSim().getSimID(),
         		-1,
         		Simulation.currTime,
         		-1,
-        		"Releaseing chain",
+        		"Releasing chain",
         		node.getID(),
         		-1,
         		"Hidden Chain: " + printHiddenChainAndContent("-") 
@@ -842,6 +911,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
             }
         }
 
+        
         hiddenChain.clear();
         hiddenChainTip = null;
         switchToNormalPower();
@@ -881,29 +951,29 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
             throw new IllegalStateException(
                 "Start advantage validation failed: must be configured before attack initiation");
         }
+        
+        getReleaseStrategy(); 
+        
         if (startAdvantage > 0) {
             String msg = "Attack starting with positive advantage (ahead): " + startAdvantage;
             Debug.p(1, "WARNING: " + msg);
             BitcoinReporter.addErrorEntry("WARNING: HiddenChainAttackBehavior " + msg);
         }
 
-        if (releaseAdvantage == null) {
-            throw new IllegalStateException(
-                "Release advantage validation failed: must be configured before attack initiation");
-        }
-        if (releaseAdvantage < 0) {
+        if ((getReleaseStrategy() == ReleaseStrategy.ADVANTAGE) && (releaseAdvantage < 0)) {
             String msg = "Attack releasing with negative advantage: " + releaseAdvantage;
             Debug.p(1, "WARNING: " + msg);
             BitcoinReporter.addErrorEntry("WARNING: HiddenChainAttackBehavior " + msg);
         }
 
-        if (releaseAdvantage < startAdvantage) {
+        if ((getReleaseStrategy() == ReleaseStrategy.ADVANTAGE) && (releaseAdvantage < startAdvantage)) {
             String msg = "Release advantage (" + releaseAdvantage +
                          ") less than start advantage (" + startAdvantage +
                          "). Attack may not progress.";
             Debug.p(1, "WARNING: " + msg);
             BitcoinReporter.addErrorEntry("WARNING: HiddenChainAttackBehavior " + msg);
         }
+        
     }
 
     
@@ -947,11 +1017,53 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
 
         return false;
     }
-
+    
+    public int getCurrentConfirmations() {
+    	if (targetTransaction == -1) {
+    		throw new IllegalStateException("Target Transaction has not been set: " + targetTransaction);
+    	}
+    	Integer confirmations = node.getStructure().getConfirmations(targetTransaction);
+    	
+    	if (confirmations == null) {
+    		return -1;
+    	} else {
+    		return (confirmations);
+    	}
+    }
+    
+    
     // ================================
     // GETTERS AND SETTERS
     // ================================
 
+    
+    
+    public Integer getReleaseConfirmations() {
+		return releaseConfirmations;
+	}
+
+	public void setReleaseConfirmations(Integer releaseConfirmations) {
+		if ((releaseConfirmations == null) || (releaseConfirmations < 0 )) {
+			throw new IllegalArgumentException("Release confirmations must be non-zero");
+		}
+		this.releaseConfirmations = releaseConfirmations;
+	}
+    
+	public ReleaseStrategy getReleaseStrategy() {
+		if ((releaseConfirmations == null) && (releaseAdvantage == null)) {
+			throw new IllegalStateException("Cannot infer release strategy: neither releaseConfirmations nor releaseAdvantage have been set.");
+		} else if (((releaseConfirmations != null) && (releaseAdvantage != null))) {
+			throw new IllegalStateException("Cannot infer release strategy: both releaseConfirmations and releaseAdvantage have been set.");
+		} else if (((releaseConfirmations != null) && (releaseAdvantage == null))) {
+			return ReleaseStrategy.CONFIRMATIONS;
+		} else if (((releaseConfirmations == null) && (releaseAdvantage != null))) {
+			return ReleaseStrategy.ADVANTAGE;
+		}
+		throw new IllegalStateException("Error in conditional.");
+	}
+	
+	
+    
     /**
      * Returns the current operational state of the attack.
      *
@@ -986,7 +1098,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
      * @return the advantage in blocks (can be negative if hidden chain is behind)
      * @throws IllegalStateException if node, blockchain structure, or longest tip is null
      */
-    public int getAdvantage() {
+    public int getCurrentAdvantage() {
         if (node == null) {
             throw new IllegalStateException(
                 "Cannot calculate advantage: BitcoinNode reference is null");
@@ -1238,7 +1350,8 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
                 ", targetTransaction=" + targetTransaction +
                 ", startAdvantage=" + startAdvantage +
                 ", releaseAdvantage=" + releaseAdvantage +
-                ", advantage=" + getAdvantage() +
+                ", releaseConfirmations=" + releaseConfirmations +
+                ", advantage=" + getCurrentAdvantage() +
                 ", hiddenChainLength=" + hiddenChain.size() +
                 '}';
     }
@@ -1309,4 +1422,16 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
         /** Actively mining a hidden chain while maintaining a public honest appearance. */
         ATTACKING
     }
+    
+    /**
+     * Enumeration of attack operational states.
+     */
+    public enum ReleaseStrategy {
+        /** Release based on the advantage of your chain. */
+        ADVANTAGE,
+
+        /** Release based on the number of confirmations of the target transaction. */
+        CONFIRMATIONS
+    }
+    
 }

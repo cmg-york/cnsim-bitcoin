@@ -1,5 +1,6 @@
 package ca.yorku.cmg.cnsim.bitcoin.node;
 
+import ca.yorku.cmg.cnsim.bitcoin.reporter.BitcoinReporter;
 import ca.yorku.cmg.cnsim.bitcoin.structure.Block;
 import ca.yorku.cmg.cnsim.engine.Simulation;
 import ca.yorku.cmg.cnsim.engine.config.Config;
@@ -171,6 +172,17 @@ public abstract class DefaultNodeBehavior implements NodeBehaviorStrategy {
         return conflictFree;
     }
 
+
+    protected boolean transactionContainedInPool (Transaction t) {
+    	return(node.getPool().contains(t));
+    }
+    
+    
+    protected boolean transactionContainedInStructure (Transaction t) {
+    	return(node.getStructure().contains(t));
+    }
+    
+    
     /**
      * Returns whether all dependencies of the transaction are satisfied.
      * <p>
@@ -225,6 +237,9 @@ public abstract class DefaultNodeBehavior implements NodeBehaviorStrategy {
      * @param b the newly received and validated block
      */
     protected void handleNewBlockReception(Block b) {
+    	/* if ((b.getID() == 1717) && node.getID() == 30) {
+        	BitcoinReporter.addErrorEntry("1717 processed by Default handleNewBlockReception in 30");
+        } */
         // Add block to the blockchain
         node.getStructure().addToStructure(b);
         // Remove block's transactions from the pool
@@ -234,6 +249,13 @@ public abstract class DefaultNodeBehavior implements NodeBehaviorStrategy {
         reconstructMiningPool();
         // Reconsider whether to start or stop mining
         considerMining(Simulation.currTime);
+        
+    	/*
+        if ((b.getID() == 1717) && node.getID() == 30) {
+        	BitcoinReporter.addErrorEntry("Mining pool is now:" + node.getMiningPool().printIDs(";"));
+        	BitcoinReporter.addErrorEntry("Pool is now:" + node.getPool().printIDs(";"));
+        } */
+        
     }
 
     /**
@@ -275,6 +297,10 @@ public abstract class DefaultNodeBehavior implements NodeBehaviorStrategy {
 	protected void reconstructMiningPool() {
 		node.setMiningPool(node.getPool().getTopN(Config.getPropertyLong("bitcoin.maxBlockSize"), 
 				new TxValuePerSizeComparator()));
+	
+        /* if ((node.getID() == 30) && (node.getMiningPool().contains(71) || (node.getMiningPool().contains(72)))) {
+            BitcoinReporter.addErrorEntry(Simulation.currTime + ": node 30 completes reconstructs pool such that " + node.getMiningPool().printIDs(";") + ".");
+        } */
 	}
 
 

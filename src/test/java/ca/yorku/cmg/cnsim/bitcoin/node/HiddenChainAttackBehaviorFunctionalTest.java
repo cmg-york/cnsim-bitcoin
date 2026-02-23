@@ -144,7 +144,7 @@ public class HiddenChainAttackBehaviorFunctionalTest {
 		printNodeStatus();
 		// Initial state after fixture setup
 		Assertions.assertEquals(HiddenChainAttackBehavior.State.IDLE, behavior.getAttackState(), "[A01]");
-		Assertions.assertEquals(-7, behavior.getAdvantage(), "[A02]");
+		Assertions.assertEquals(-7, behavior.getCurrentAdvantage(), "[A02]");
 		Assertions.assertFalse(node.isMining(), "[A03]");
 		Assertions.assertEquals("{11,8,17,13,16,18}", node.getStructure().printTips(","), "[A03.1]");
 		Assertions.assertTrue(node.getPool().debugPrintPoolTx().isEmpty(), "[A03.2]");
@@ -163,7 +163,7 @@ public class HiddenChainAttackBehaviorFunctionalTest {
         printNodeStatus();
         // After receiving TX 40 in MONITORING state - should remain in MONITORING
         Assertions.assertEquals(HiddenChainAttackBehavior.State.MONITORING, behavior.getAttackState(), "[A04]");
-        Assertions.assertEquals(-7, behavior.getAdvantage(), "[A05]");
+        Assertions.assertEquals(-7, behavior.getCurrentAdvantage(), "[A05]");
         Assertions.assertEquals("{11,8,17,13,16,18}", node.getStructure().printTips(","), "[A05.1]");
         Assertions.assertFalse(node.isMining(), "[A05.2]");
         Assertions.assertTrue(node.getPool().debugPrintPoolTx().isEmpty(), "[A05.3]");
@@ -187,7 +187,7 @@ public class HiddenChainAttackBehaviorFunctionalTest {
         printNodeStatus();
         // Block 19 contains target TX 40, attack initiated
         Assertions.assertEquals(HiddenChainAttackBehavior.State.ATTACKING, behavior.getAttackState(), "[A06]");
-        Assertions.assertEquals(-1, behavior.getAdvantage(), "[A07]");
+        Assertions.assertEquals(-1, behavior.getCurrentAdvantage(), "[A07]");
         Assertions.assertEquals("18,12,10,9,4,2,1", behavior.printHiddenChain(","), "[A08]");
         Assertions.assertFalse(node.isMining(), "[A09]");
         Assertions.assertEquals("{11,8,17,13,16,19}", node.getStructure().printTips(","), "[A09.1]");
@@ -209,7 +209,7 @@ public class HiddenChainAttackBehaviorFunctionalTest {
         printNodeStatus();
         // Transactions 42, 43 added to pool (40, 41 already seen in block)
         Assertions.assertEquals(HiddenChainAttackBehavior.State.ATTACKING, behavior.getAttackState(), "[A10]");
-        Assertions.assertEquals(-1, behavior.getAdvantage(), "[A11]");
+        Assertions.assertEquals(-1, behavior.getCurrentAdvantage(), "[A11]");
         Assertions.assertTrue(node.isMining(), "[A12]");
         Assertions.assertEquals("{11,8,17,13,16,19}", node.getStructure().printTips(","), "[A12.1]");
         Assertions.assertTrue(node.getPool().debugPrintPoolTx().contains("42") && node.getPool().debugPrintPoolTx().contains("43"), "[A12.2]");
@@ -233,7 +233,7 @@ public class HiddenChainAttackBehaviorFunctionalTest {
         printNodeStatus();
         // Block 21 creates orphan (not on main chain)
         Assertions.assertEquals(HiddenChainAttackBehavior.State.ATTACKING, behavior.getAttackState(), "[A13]");
-        Assertions.assertEquals(-1, behavior.getAdvantage(), "[A14]");
+        Assertions.assertEquals(-1, behavior.getCurrentAdvantage(), "[A14]");
         Assertions.assertTrue(node.isMining(), "[A15]");
         Assertions.assertEquals("{11,8,17,13,16,19,21}", node.getStructure().printTips(","), "[A15.1]");
         Assertions.assertTrue(node.getPool().debugPrintPoolTx().contains("42"), "[A15.2]");
@@ -255,7 +255,7 @@ public class HiddenChainAttackBehaviorFunctionalTest {
         printNodeStatus();
         // Pool enriched with 44, 45, 46
         Assertions.assertEquals(HiddenChainAttackBehavior.State.ATTACKING, behavior.getAttackState(), "[A16]");
-        Assertions.assertEquals(-1, behavior.getAdvantage(), "[A17]");
+        Assertions.assertEquals(-1, behavior.getCurrentAdvantage(), "[A17]");
         Assertions.assertTrue(node.isMining(), "[A18]");
         Assertions.assertEquals("{11,8,17,13,16,19,21}", node.getStructure().printTips(","), "[A18.1]");
         Assertions.assertTrue(node.getPool().debugPrintPoolTx().contains("42") && node.getPool().debugPrintPoolTx().contains("44") && node.getPool().debugPrintPoolTx().contains("45") && node.getPool().debugPrintPoolTx().contains("46"), "[A18.2]");
@@ -274,7 +274,7 @@ public class HiddenChainAttackBehaviorFunctionalTest {
         printNodeStatus();
         // First malicious block (ID 20) added to hidden chain on top of 18
         Assertions.assertEquals(HiddenChainAttackBehavior.State.ATTACKING, behavior.getAttackState(), "[A19]");
-        Assertions.assertEquals(0, behavior.getAdvantage(), "[A20]");
+        Assertions.assertEquals(0, behavior.getCurrentAdvantage(), "[A20]");
         Assertions.assertEquals("20,18,12,10,9,4,2,1", behavior.printHiddenChain(","), "[A21]");
         Assertions.assertFalse(node.isMining(), "[A22]");
         Assertions.assertEquals("{11,8,17,13,16,19,21}", node.getStructure().printTips(","), "[A22.1]");
@@ -296,7 +296,7 @@ public class HiddenChainAttackBehaviorFunctionalTest {
         printNodeStatus();
         // Second malicious block (ID 22) added on top of 20
         Assertions.assertEquals(HiddenChainAttackBehavior.State.ATTACKING, behavior.getAttackState(), "[A23]");
-        Assertions.assertEquals(1, behavior.getAdvantage(), "[A24]");
+        Assertions.assertEquals(1, behavior.getCurrentAdvantage(), "[A24]");
         Assertions.assertEquals("22,20,18,12,10,9,4,2,1", behavior.printHiddenChain(","), "[A25]");
         Assertions.assertFalse(node.isMining(), "[A26]");
         Assertions.assertEquals("{11,8,17,13,16,19,21}", node.getStructure().printTips(","), "[A26.1]");
@@ -318,7 +318,7 @@ public class HiddenChainAttackBehaviorFunctionalTest {
         printNodeStatus();
         // Third malicious block (ID 23) added on top of 22
         Assertions.assertEquals(HiddenChainAttackBehavior.State.ATTACKING, behavior.getAttackState(), "[A27]");
-        Assertions.assertEquals(2, behavior.getAdvantage(), "[A28]");
+        Assertions.assertEquals(2, behavior.getCurrentAdvantage(), "[A28]");
         Assertions.assertEquals("23,22,20,18,12,10,9,4,2,1", behavior.printHiddenChain(","), "[A29]");
         Assertions.assertFalse(node.isMining(), "[A30]");
         Assertions.assertEquals("{11,8,17,13,16,19,21}", node.getStructure().printTips(","), "[A30.1]");
@@ -339,7 +339,7 @@ public class HiddenChainAttackBehaviorFunctionalTest {
         printNodeStatus();
         // Fourth malicious block (ID 24) added; advantage reaches 3, attack released
         Assertions.assertEquals(HiddenChainAttackBehavior.State.IDLE, behavior.getAttackState(), "[A31]");
-        Assertions.assertEquals(-11, behavior.getAdvantage(), "[A32]");
+        Assertions.assertEquals(-11, behavior.getCurrentAdvantage(), "[A32]");
         Assertions.assertEquals("", behavior.printHiddenChain(","), "[A33]");
         Assertions.assertFalse(node.isMining(), "[A34]");
         Assertions.assertEquals("{11,8,17,13,16,19,21,24}", node.getStructure().printTips(","), "[A34.1]");
@@ -363,7 +363,7 @@ public class HiddenChainAttackBehaviorFunctionalTest {
         printNodeStatus();
         // Parentless block becomes orphan
         Assertions.assertEquals(HiddenChainAttackBehavior.State.IDLE, behavior.getAttackState(), "[A35]");
-        Assertions.assertEquals(-12, behavior.getAdvantage(), "[A36]");
+        Assertions.assertEquals(-12, behavior.getCurrentAdvantage(), "[A36]");
         Assertions.assertFalse(node.isMining(), "[A37]");
         Assertions.assertEquals("{19,21,11,8,17,13,16,25}", node.getStructure().printTips(","), "[A37.1]");
         Assertions.assertTrue(node.getPool().debugPrintPoolTx().isEmpty(), "[A37.2]");
@@ -384,7 +384,7 @@ public class HiddenChainAttackBehaviorFunctionalTest {
         printNodeStatus();
         // Final block mined on top of released chain
         Assertions.assertEquals(HiddenChainAttackBehavior.State.IDLE, behavior.getAttackState(), "[A38]");
-        Assertions.assertEquals(-13, behavior.getAdvantage(), "[A39]");
+        Assertions.assertEquals(-13, behavior.getCurrentAdvantage(), "[A39]");
         Assertions.assertFalse(node.isMining(), "[A40]");
         Assertions.assertEquals("{19,21,11,8,17,13,16,26}", node.getStructure().printTips(","), "[A40.1]");
         Assertions.assertTrue(node.getPool().debugPrintPoolTx().isEmpty(), "[A40.2]");
@@ -433,7 +433,7 @@ public class HiddenChainAttackBehaviorFunctionalTest {
 		printNodeStatus();
 		// Initial state after fixture setup
 		Assertions.assertEquals(HiddenChainAttackBehavior.State.IDLE, behavior.getAttackState(), "[S01]");
-		Assertions.assertEquals(-7, behavior.getAdvantage(), "[A02]");
+		Assertions.assertEquals(-7, behavior.getCurrentAdvantage(), "[A02]");
 		Assertions.assertFalse(node.isMining(), "[A03]");
 		Assertions.assertEquals("{11,8,17,13,16,18}", node.getStructure().printTips(","), "[A03.1]");
 		Assertions.assertTrue(node.getPool().debugPrintPoolTx().isEmpty(), "[A03.2]");
@@ -459,7 +459,7 @@ public class HiddenChainAttackBehaviorFunctionalTest {
         printNodeStatus();
         // Block 19 contains target TX 40, attack initiated
         Assertions.assertEquals(HiddenChainAttackBehavior.State.ATTACKING, behavior.getAttackState(), "[A06]");
-        Assertions.assertEquals(-1, behavior.getAdvantage(), "[A07]");
+        Assertions.assertEquals(-1, behavior.getCurrentAdvantage(), "[A07]");
         Assertions.assertEquals("18,12,10,9,4,2,1", behavior.printHiddenChain(","), "[A08]");
         Assertions.assertFalse(node.isMining(), "[A09]");
         Assertions.assertEquals("{11,8,17,13,16,19}", node.getStructure().printTips(","), "[A09.1]");
@@ -482,7 +482,7 @@ public class HiddenChainAttackBehaviorFunctionalTest {
         printNodeStatus();
         // Transactions 42, 43 added to pool (40, 41 already seen in block)
         Assertions.assertEquals(HiddenChainAttackBehavior.State.ATTACKING, behavior.getAttackState(), "[A10]");
-        Assertions.assertEquals(-1, behavior.getAdvantage(), "[A11]");
+        Assertions.assertEquals(-1, behavior.getCurrentAdvantage(), "[A11]");
         Assertions.assertTrue(node.isMining(), "[A12]");
         Assertions.assertEquals("{11,8,17,13,16,19}", node.getStructure().printTips(","), "[A12.1]");
         Assertions.assertTrue(node.getPool().debugPrintPoolTx().contains("42") && node.getPool().debugPrintPoolTx().contains("43"), "[A12.2]");
@@ -507,7 +507,7 @@ public class HiddenChainAttackBehaviorFunctionalTest {
         printNodeStatus();
         // Block 21 creates orphan (not on main chain)
         Assertions.assertEquals(HiddenChainAttackBehavior.State.ATTACKING, behavior.getAttackState(), "[A13]");
-        Assertions.assertEquals(-1, behavior.getAdvantage(), "[A14]");
+        Assertions.assertEquals(-1, behavior.getCurrentAdvantage(), "[A14]");
         Assertions.assertTrue(node.isMining(), "[A15]");
         Assertions.assertEquals("{11,8,17,13,16,19,21}", node.getStructure().printTips(","), "[A15.1]");
         Assertions.assertTrue(node.getPool().debugPrintPoolTx().contains("42"), "[A15.2]");
@@ -530,7 +530,7 @@ public class HiddenChainAttackBehaviorFunctionalTest {
         printNodeStatus();
         // Pool enriched with 44, 45, 46
         Assertions.assertEquals(HiddenChainAttackBehavior.State.ATTACKING, behavior.getAttackState(), "[A16]");
-        Assertions.assertEquals(-1, behavior.getAdvantage(), "[A17]");
+        Assertions.assertEquals(-1, behavior.getCurrentAdvantage(), "[A17]");
         Assertions.assertTrue(node.isMining(), "[A18]");
         Assertions.assertEquals("{11,8,17,13,16,19,21}", node.getStructure().printTips(","), "[A18.1]");
         Assertions.assertTrue(node.getPool().debugPrintPoolTx().contains("42") && node.getPool().debugPrintPoolTx().contains("44") && node.getPool().debugPrintPoolTx().contains("45") && node.getPool().debugPrintPoolTx().contains("46"), "[A18.2]");
@@ -564,7 +564,7 @@ public class HiddenChainAttackBehaviorFunctionalTest {
         printNodeStatus();
         // First malicious block (ID 20) added to hidden chain on top of 18
         Assertions.assertEquals(HiddenChainAttackBehavior.State.ATTACKING, behavior.getAttackState(), "[A19]");
-        Assertions.assertEquals(0, behavior.getAdvantage(), "[A20]");
+        Assertions.assertEquals(0, behavior.getCurrentAdvantage(), "[A20]");
         Assertions.assertEquals("20,18,12,10,9,4,2,1", behavior.printHiddenChain(","), "[A21]");
         Assertions.assertFalse(node.isMining(), "[A22]");
         Assertions.assertEquals("{11,8,17,13,16,19,22}", node.getStructure().printTips(","), "[A22.1]");
@@ -737,6 +737,395 @@ public class HiddenChainAttackBehaviorFunctionalTest {
 	
 	
 	
+	/**
+	 * Perform an attack on top of an existing fixture, to study confirmations based release.
+	 */
+	@Test
+	void testMaliciousOperation_ConfirmationsRelease_v2() {
+		behavior.setTargetTransaction(40);
+		behavior.setAttackPower(30); //Irrelevant
+		behavior.setReleaseConfirmations(3);
+		behavior.setStartAdvantage(0);
+		behavior.setAttackTimeOut(200);
+
+		String filename = "HiddenChainAttackBehaviorFunctionalTest-testMaliciousOperation_ConfirmationsRelease_v2.md";
+
+        try {
+            TestTutorial.start(filename);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        TestTutorial.step("Perform an attack on top of an existing fixture. Start immediately (advantage 0) and end when target receives 3 confirmations.");
+        TestTutorial.step("Refer to src/test/resources/chainfixtures.drawio for visual.");
+        
+        TestTutorial.step("# Constructing the initial fixture.");
+		TestTutorial.disableOutput();
+		helper.executeBlockManagementTest(node);
+		TestTutorial.enableOutput();
+
+		printNodeStatus();
+		// Initial state after fixture setup
+		Assertions.assertEquals(HiddenChainAttackBehavior.State.IDLE, behavior.getAttackState(), "[S01]");
+		Assertions.assertEquals(-7, behavior.getCurrentAdvantage(), "[A02]");
+		Assertions.assertFalse(node.isMining(), "[A03]");
+		Assertions.assertEquals("{11,8,17,13,16,18}", node.getStructure().printTips(","), "[A03.1]");
+		Assertions.assertTrue(node.getPool().debugPrintPoolTx().isEmpty(), "[A03.2]");
+		Assertions.assertTrue(node.getMiningPool().debugPrintPoolTx().isEmpty(), "[A03.3]");
+		Assertions.assertEquals(30, behavior.getAttackPower(), "[A03.4]");
+		Assertions.assertEquals(10, node.getHashPower(), "[A03.5]");
+		Assertions.assertTrue(java.util.Arrays.stream(node.getStructure().printStructure()).anyMatch(s -> s.contains("18,12,7")), "[A03.6]");
+		Assertions.assertEquals(1, node.getStructure().printOrphans().length, "[A03.7]");
+
+		behavior.goToMonitoringState();
+		
+		
+        TestTutorial.step("# Create and receive target block 19: {40,41}");
+        TestTutorial.step("Change should turn to attack. Advantage should raise to -1. Hidden chain includes everything from ");
+
+        Block block = new Block();
+        block.addTransaction(new Transaction(40, 10, 10, 50));
+        block.addTransaction(new Transaction(41, 11, 20, 25));
+        Block b19 = block;
+
+        node.event_NodeReceivesPropagatedContainer(b19);
+		
+        printNodeStatus();
+        // Block 19 contains target TX 40, attack initiated
+        Assertions.assertEquals(HiddenChainAttackBehavior.State.ATTACKING, behavior.getAttackState(), "[C06]");
+        Assertions.assertEquals(-1, behavior.getCurrentAdvantage(), "[C07]");
+        Assertions.assertEquals("18,12,10,9,4,2,1", behavior.printHiddenChain(","), "[C08]");
+        Assertions.assertFalse(node.isMining(), "[C09]");
+        Assertions.assertEquals("{11,8,17,13,16,19}", node.getStructure().printTips(","), "[C09.1]");
+        Assertions.assertTrue(node.getPool().debugPrintPoolTx().isEmpty(), "[C09.2]");
+        Assertions.assertTrue(node.getMiningPool().debugPrintPoolTx().isEmpty(), "[C09.3]");
+        Assertions.assertEquals(30, behavior.getAttackPower(), "[C09.4]");
+        Assertions.assertEquals(30, node.getHashPower(), "[C09.5]");
+        Assertions.assertTrue(java.util.Arrays.stream(node.getStructure().printStructure()).anyMatch(s -> s.startsWith("19,18")), "[C09.6]");
+        Assertions.assertEquals(1, node.getStructure().printOrphans().length, "[C09.7]");
+        
+		
+        TestTutorial.step("# Receive Transactions 40, 41, 42, 43");
+        TestTutorial.step("Pools should be enriched. Attack is still on.");
+
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(40, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(41, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(42, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(43, 10, 10, 50), 0);
+
+        printNodeStatus();
+        
+        
+        TestTutorial.step("# Receive Block 21: {42, 43}");
+
+        block = new Block();
+        block.addTransaction(new Transaction(42, 10, 10, 50));
+        block.addTransaction(new Transaction(43, 11, 20, 25));
+        block.setParent(b19);
+        Block b21 = block;
+
+        node.event_NodeReceivesPropagatedContainer(b21);
+
+        printNodeStatus();
+        
+        
+        //TestTutorial.step("# Complete validation of 20");
+        
+        //node.event_NodeCompletesValidation(node.getNextValidationEvent().getContainer(), 0);
+        //printNodeStatus();
+
+        TestTutorial.step("# Receive Transactions 44, 45");
+        
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(44, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(45, 10, 10, 50), 0);
+
+        printNodeStatus();
+        
+        TestTutorial.step("# Receive Block 23: {44, 45}");
+
+        block = new Block();
+        block.addTransaction(new Transaction(44, 10, 10, 50));
+        block.addTransaction(new Transaction(45, 11, 20, 25));
+        block.setParent(b21);
+        Block b23 = block;
+        
+        node.event_NodeReceivesPropagatedContainer(b23);
+        
+        printNodeStatus();
+
+        
+        //TestTutorial.step("# Validate");
+        
+        //node.event_NodeCompletesValidation(node.getNextValidationEvent().getContainer(), 0);
+        
+        printNodeStatus();
+        
+        
+        TestTutorial.step("# Receive Transactions 46, 47");
+        
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(46, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(47, 10, 10, 50), 0);
+        //node.event_NodeCompletesValidation(node.getNextValidationEvent().getContainer(), 0);
+        
+        printNodeStatus();
+        
+        
+        TestTutorial.step("# Receive also Transactions: {40, 41, 42, 46, 48, 49, 50, 51}");
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(40, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(41, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(42, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(46, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(48, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(49, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(50, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(51, 10, 10, 50), 0);
+        
+        printNodeStatus();
+        
+        
+        TestTutorial.step("# Receive Block 25: {46, 47} - release");
+
+        block = new Block();
+        block.addTransaction(new Transaction(46, 10, 10, 50));
+        block.addTransaction(new Transaction(47, 11, 20, 25));
+        block.setParent(b23);
+        Block b25 = block;
+        
+        node.event_NodeReceivesPropagatedContainer(b25);
+        
+        printNodeStatus();
+
+        TestTutorial.step("# Now validate");
+        node.event_NodeCompletesValidation(node.getNextValidationEvent().getContainer(), 0);
+        
+        printNodeStatus();
+        
+        TestTutorial.step("# Receive Block 26: {48, 49}");
+
+        block = new Block();
+        block.addTransaction(new Transaction(48, 10, 10, 50));
+        block.addTransaction(new Transaction(49, 11, 20, 25));
+        //block.setParent(b25);
+        Block b26 = block;
+        
+        node.event_NodeReceivesPropagatedContainer(b26);
+        
+        printNodeStatus();
+
+        TestTutorial.code("Belief in 40: " + node.belief(40));
+        
+        
+
+        
+        
+        TestTutorial.close();
+		
+	}
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	/**
+	 * Perform an attack on top of an existing fixture, to study confirmations based release.
+	 */
+	@Test
+	void testMaliciousOperation_ConfirmationsRelease() {
+		behavior.setTargetTransaction(40);
+		behavior.setAttackPower(30); //Irrelevant
+		behavior.setReleaseConfirmations(3);
+		behavior.setStartAdvantage(0);
+		behavior.setAttackTimeOut(200);
+
+		String filename = "HiddenChainAttackBehaviorFunctionalTest-testMaliciousOperation_ConfirmationsRelease.md";
+
+        try {
+            TestTutorial.start(filename);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        TestTutorial.step("Perform an attack on top of an existing fixture. Start immediately (advantage 0) and end when target receives 3 confirmations.");
+        TestTutorial.step("Refer to src/test/resources/chainfixtures.drawio for visual.");
+        
+        TestTutorial.step("# Constructing the initial fixture.");
+		TestTutorial.disableOutput();
+		helper.executeBlockManagementTest(node);
+		TestTutorial.enableOutput();
+
+		printNodeStatus();
+		// Initial state after fixture setup
+		Assertions.assertEquals(HiddenChainAttackBehavior.State.IDLE, behavior.getAttackState(), "[S01]");
+		Assertions.assertEquals(-7, behavior.getCurrentAdvantage(), "[A02]");
+		Assertions.assertFalse(node.isMining(), "[A03]");
+		Assertions.assertEquals("{11,8,17,13,16,18}", node.getStructure().printTips(","), "[A03.1]");
+		Assertions.assertTrue(node.getPool().debugPrintPoolTx().isEmpty(), "[A03.2]");
+		Assertions.assertTrue(node.getMiningPool().debugPrintPoolTx().isEmpty(), "[A03.3]");
+		Assertions.assertEquals(30, behavior.getAttackPower(), "[A03.4]");
+		Assertions.assertEquals(10, node.getHashPower(), "[A03.5]");
+		Assertions.assertTrue(java.util.Arrays.stream(node.getStructure().printStructure()).anyMatch(s -> s.contains("18,12,7")), "[A03.6]");
+		Assertions.assertEquals(1, node.getStructure().printOrphans().length, "[A03.7]");
+
+		behavior.goToMonitoringState();
+		
+		
+        TestTutorial.step("# Create and receive target block 19: {40,41}");
+        TestTutorial.step("Change should turn to attack. Advantage should raise to -1. Hidden chain includes everything from ");
+
+        Block block = new Block();
+        block.addTransaction(new Transaction(40, 10, 10, 50));
+        block.addTransaction(new Transaction(41, 11, 20, 25));
+        Block b19 = block;
+
+        node.event_NodeReceivesPropagatedContainer(b19);
+		
+        printNodeStatus();
+        // Block 19 contains target TX 40, attack initiated
+        Assertions.assertEquals(HiddenChainAttackBehavior.State.ATTACKING, behavior.getAttackState(), "[C06]");
+        Assertions.assertEquals(-1, behavior.getCurrentAdvantage(), "[C07]");
+        Assertions.assertEquals("18,12,10,9,4,2,1", behavior.printHiddenChain(","), "[C08]");
+        Assertions.assertFalse(node.isMining(), "[C09]");
+        Assertions.assertEquals("{11,8,17,13,16,19}", node.getStructure().printTips(","), "[C09.1]");
+        Assertions.assertTrue(node.getPool().debugPrintPoolTx().isEmpty(), "[C09.2]");
+        Assertions.assertTrue(node.getMiningPool().debugPrintPoolTx().isEmpty(), "[C09.3]");
+        Assertions.assertEquals(30, behavior.getAttackPower(), "[C09.4]");
+        Assertions.assertEquals(30, node.getHashPower(), "[C09.5]");
+        Assertions.assertTrue(java.util.Arrays.stream(node.getStructure().printStructure()).anyMatch(s -> s.startsWith("19,18")), "[C09.6]");
+        Assertions.assertEquals(1, node.getStructure().printOrphans().length, "[C09.7]");
+        
+		
+        TestTutorial.step("# Receive Transactions 40, 41, 42, 43");
+        TestTutorial.step("Pools should be enriched. Attack is still on.");
+
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(40, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(41, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(42, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(43, 10, 10, 50), 0);
+
+        printNodeStatus();
+        
+        
+        TestTutorial.step("# Receive Block 21: {42, 43}");
+
+        block = new Block();
+        block.addTransaction(new Transaction(42, 10, 10, 50));
+        block.addTransaction(new Transaction(43, 11, 20, 25));
+        block.setParent(b19);
+        Block b21 = block;
+
+        node.event_NodeReceivesPropagatedContainer(b21);
+
+        printNodeStatus();
+        
+        
+        TestTutorial.step("# Complete validation of 20");
+        
+        node.event_NodeCompletesValidation(node.getNextValidationEvent().getContainer(), 0);
+        printNodeStatus();
+
+        TestTutorial.step("# Receive Transactions 44, 45");
+        
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(44, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(45, 10, 10, 50), 0);
+
+        printNodeStatus();
+        
+        TestTutorial.step("# Receive Block 23: {44, 45}");
+
+        block = new Block();
+        block.addTransaction(new Transaction(44, 10, 10, 50));
+        block.addTransaction(new Transaction(45, 11, 20, 25));
+        block.setParent(b21);
+        Block b23 = block;
+        
+        node.event_NodeReceivesPropagatedContainer(b23);
+        
+        printNodeStatus();
+
+        
+        TestTutorial.step("# Validate");
+        
+        node.event_NodeCompletesValidation(node.getNextValidationEvent().getContainer(), 0);
+        
+        printNodeStatus();
+        
+        
+        TestTutorial.step("# Receive Transactions 46, 47 and validate");
+        
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(46, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(47, 10, 10, 50), 0);
+        node.event_NodeCompletesValidation(node.getNextValidationEvent().getContainer(), 0);
+        
+        printNodeStatus();
+        
+        
+        TestTutorial.step("# Receive also Transactions: {40, 41, 42, 46, 48, 49, 50, 51}");
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(40, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(41, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(42, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(46, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(48, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(49, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(50, 10, 10, 50), 0);
+        node.event_NodeReceivesPropagatedTransaction(new Transaction(51, 10, 10, 50), 0);
+        
+        printNodeStatus();
+        
+                
+        TestTutorial.step("# Receive Block 25: {46, 47} - release");
+
+        block = new Block();
+        block.addTransaction(new Transaction(46, 10, 10, 50));
+        block.addTransaction(new Transaction(47, 11, 20, 25));
+        block.setParent(b23);
+        Block b25 = block;
+        
+        node.event_NodeReceivesPropagatedContainer(b25);
+        
+        printNodeStatus();
+
+        
+        TestTutorial.step("# Now validate");
+        node.event_NodeCompletesValidation(node.getNextValidationEvent().getContainer(), 0);
+        
+        printNodeStatus();
+        
+        
+        TestTutorial.step("# Receive Block 26: {48, 49}");
+
+        block = new Block();
+        block.addTransaction(new Transaction(48, 10, 10, 50));
+        block.addTransaction(new Transaction(49, 11, 20, 25));
+        //block.setParent(b25);
+        Block b26 = block;
+        
+        node.event_NodeReceivesPropagatedContainer(b26);
+        
+        printNodeStatus();
+
+        TestTutorial.code("Belief in 40: " + node.belief(40));
+        
+        TestTutorial.close();
+		
+	}
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
 	
 	private void printNodeStatus() {
         TestTutorial.step("#### Node status:");
@@ -744,7 +1133,7 @@ public class HiddenChainAttackBehaviorFunctionalTest {
                 "\nMining: " + node.isMining() +
                 "\nPool: " + node.getPool().debugPrintPoolTx() +
                 "\nMining Pool: " + node.getMiningPool().debugPrintPoolTx());
-        TestTutorial.code("State: " + behavior.getAttackState() + "\nAdvantage: " + behavior.getAdvantage() + "\nPower: " + behavior.getAttackPower() + "/" + node.getHashPower() + "\nHidden chain: " + behavior.printHiddenChainAndContent(","));
+        TestTutorial.code("State: " + behavior.getAttackState() + "\nAdvantage: " + behavior.getCurrentAdvantage() + "\nPower: " + behavior.getAttackPower() + "/" + node.getHashPower() + "\nHidden chain: " + behavior.printHiddenChainAndContent(","));
         TestTutorial.code("Structure:\n" + String.join("\n",node.getStructure().printStructure()));
         TestTutorial.code("Orphans: \n" + String.join("\n",node.getStructure().printOrphans()));
 	}

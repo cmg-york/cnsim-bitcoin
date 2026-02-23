@@ -59,8 +59,15 @@ public class BitcoinNodeFactory extends AbstractNodeFactory {
 		
 		switch (defaultNodeBehavior) {
 			case "Hidden Chain Attack" :
-				if (nodeSet == null)
+				if (nodeSet == null) {
 					throw new IllegalArgumentException("Hidden Chain Attack behavior requires access to honest nodeset. Please insantiate factory with BitcoinNodeFactory(String, Simulation, PoWNodeSet)");
+				}
+				if (
+						Config.hasProperty("hiddenChainAttack.releaseAdvantage") &&
+						Config.hasProperty("hiddenChainAttack.releaseConfirmations")) {
+					throw new IllegalStateException("Hidden Chain Attack: define either releaseAdvantage or releaseConfirmations, not both");
+				}
+				
 				strategy = new HiddenChainAttackBehavior(node, 
 		        		new HonestNodeBehavior(node),
 		        		new HonestNodeBehaviorLimited(node));
@@ -69,14 +76,25 @@ public class BitcoinNodeFactory extends AbstractNodeFactory {
 						Config.getPropertyLong("hiddenChainAttack.targetTransaction"));
 				((HiddenChainAttackBehavior) strategy).setStartAdvantage(
 						Config.getPropertyInt("hiddenChainAttack.startAdvantage"));
-				((HiddenChainAttackBehavior) strategy).setReleaseAdvantage(
-						Config.getPropertyInt("hiddenChainAttack.releaseAdvantage"));
 				((HiddenChainAttackBehavior) strategy).setAttackPower(
 						getMaliciousPower(
 								Config.getPropertyFloat("hiddenChainAttack.maliciousPowerRatio"),
-								nodeSet.getTotalHashPower()
+								nodeSet.getTotalHashPower() - node.getHashPower()
 								)
 						);
+
+				if (Config.hasProperty("hiddenChainAttack.releaseAdvantage")) {
+					((HiddenChainAttackBehavior) strategy).setReleaseAdvantage(
+							Config.getPropertyInt("hiddenChainAttack.releaseAdvantage"));
+				} else if (Config.hasProperty("hiddenChainAttack.releaseConfirmations")) {
+					((HiddenChainAttackBehavior) strategy).setReleaseConfirmations(
+							Config.getPropertyInt("hiddenChainAttack.releaseConfirmations"));
+				} else {
+					throw new IllegalStateException("Hidden Chain Attack: define either releaseAdvantage or releaseConfirmations, not both");
+				}
+
+				
+				
 				
 				if (Config.hasProperty("hiddenChainAttack.attackTimeOut")) {
 					((HiddenChainAttackBehavior) strategy).setAttackTimeOut(

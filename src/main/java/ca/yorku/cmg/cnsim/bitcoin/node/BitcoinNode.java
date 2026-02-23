@@ -253,7 +253,18 @@ public class BitcoinNode extends PoWNode {
 	public double getProspectiveCycles() {
 		return super.getProspectiveMiningCycles();
 	}
+	
+	//TODO: this should move up the hierarchy
+	public float belief(Transaction t) {
+		return (blockchain.transactionBelief(t.getID()));
+	}
 
+	//TODO: this should move up the hierarchy
+	public float belief(long txID) {
+		return (blockchain.transactionBelief(txID));
+	}
+	
+	
 	@Override
 	public void close(INode n) {
 		BitcoinReporter.reportBlockChainState(

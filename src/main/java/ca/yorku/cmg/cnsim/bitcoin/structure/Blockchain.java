@@ -126,10 +126,6 @@ public class Blockchain implements IStructure {
 				processOrphans();
 			} else {
 				
-				if (b.getID() == 9) {
-					System.err.println("I found an overlap and I am discarding");  
-				}
-				
 				//Overlap found, discard block
 				BitcoinReporter.reportBlockEvent(
 						Simulation.currentSimulationID,
@@ -472,7 +468,37 @@ public class Blockchain implements IStructure {
 		return false; // Block not found in the parental structure
 	}
 
-	
+	/**
+	 * Returns the depth under tip in which transaction exists, or null if the transaction does not exist.
+	 * @param tip A pointer to a block from where to traverse the blockchain towards the genesis.
+	 * @param txID The ID of the transaction.
+	 * @return The number of blocks under which the transaction is buried (excluding the block in which the transaction is in), null if the transaction is not found. 
+	 */
+	public Integer getTransactionDepth(Block tip, long txID) {
+		int depth = 0; 
+		
+		if (txID == -1) {
+			throw new IllegalArgumentException("Transaction ID must be a positive number, got " + txID);
+		}
+		
+		if (tip == null) {
+			return (null);
+		}
+		
+		Block currBlock = tip;
+		while (currBlock != null) {
+			if (currBlock.contains(txID)) {
+				return (depth);
+			}
+			currBlock = (Block) currBlock.getParent();
+			depth++;
+		}
+		
+		// If you reached this point, you did not find the 
+		// transactions
+		return(null);
+		
+	}
 
 	public boolean satisfiesDependencies(TransactionGroup g, TxDependencyRegistry reg) {
 		// TODO: The method satisfiesDependenciesOf_InclSelf does not exist in the engine
@@ -578,7 +604,9 @@ public class Blockchain implements IStructure {
 	}
 	
 	
-
+	public Integer getConfirmations(long txID) {
+		return (getTransactionDepth(getLongestTip(),txID));
+	}
 	
 	
 	

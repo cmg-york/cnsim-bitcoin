@@ -109,8 +109,8 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
     public void event_NodeReceivesPropagatedTransaction(Transaction t, long time) {
         boolean conflictFree = conflictFree(t);
         boolean dependenciesPresent = dependenciesPresent(t);
-        boolean containedInPool = node.getPool().contains(t);
-        boolean containedInStructure = node.getStructure().contains(t);
+        boolean containedInPool = this.transactionContainedInPool(t); //  node.getPool().contains(t);
+        boolean containedInStructure = this.transactionContainedInStructure(t);   //node.getStructure().contains(t);
 
         if (conflictFree && dependenciesPresent) {
             if (!containedInPool && !containedInStructure) {
@@ -168,12 +168,20 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
     public void event_NodeReceivesPropagatedContainer(ITxContainer t) {
         Block b = (Block) t;
 
+        //BAKALIS
+    	/* if ((b.getID() == 1717) && node.getID() == 30) {
+            BitcoinReporter.addErrorEntry(Simulation.currTime + ": node 30 reveives " + b.getCurrentNodeID() + b.printIDs(";") + "pointing at " + (b.getParent() == null ? "null": b.getParent().getID()));
+        } */
+        
         // The block is a copy of the block object validated by the originating node
         b.setCurrentNodeID(node.getID());
         b.setLastBlockEvent("Node Receives Propagated Block");
         b.setValidationCycles(-1.0);
         b.setValidationDifficulty(-1.0);
 
+
+        
+        
         BitcoinReporter.reportBlockEvent(
                 Simulation.currentSimulationID,
                 Simulation.currTime,
@@ -194,6 +202,11 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
             !node.getStructure().contains(cB) &&          // no conflicting tx is already in the structure
             node.getStructure().satisfiesDependencies(b, node.getSim().getDependencyRegistry())) {
             // Block is valid - accept it
+        	
+        	/* if ((b.getID() == 1717) && node.getID() == 30) {
+            	BitcoinReporter.addErrorEntry("1717 goes for reception");
+            } */
+            
             handleNewBlockReception(b);
         } else {
             // Block is invalid - discard and log the reason
@@ -284,9 +297,12 @@ public class HonestNodeBehavior extends DefaultNodeBehavior {
         if (node.getStructure().contains(b)) {
             String msg = "Node::event_NodeCompletesValidation: Block " + b.getID() +
                     " containing " + b.printIDs(",") +
-                    " just validated is found to overlap with structure: \n" +
-                    node.getStructure().printStructure() +
-                    " Orphans are: \n:" + node.getStructure().printOrphans() +
+                    " just validated by node " + node.getID() + 
+                    " in simulation " + node.getSim().getSimID() +
+                    " pointing to " + (b.getParent() == null ? 0: b.getParent().getID()) +
+                    " is found to overlap with structure: \n" +
+                    String.join("\n", node.getStructure().printStructure()) +
+                    "\nOrphans are: \n:" + String.join("\n", node.getStructure().printOrphans()) +
                     "\n This should not happen as the node always updates its miningpool" +
                     " to have no overlaps with structure.\n\n";
             BitcoinReporter.addErrorEntry(msg);
