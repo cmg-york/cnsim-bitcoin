@@ -469,13 +469,13 @@ public class Blockchain implements IStructure {
 	}
 
 	/**
-	 * Returns the depth under tip in which transaction exists, or null if the transaction does not exist.
+	 * Returns the depth under tip in which transaction exists, or null if the transaction does not exist. The depth includes the block in which the transaction exists.
 	 * @param tip A pointer to a block from where to traverse the blockchain towards the genesis.
 	 * @param txID The ID of the transaction.
-	 * @return The number of blocks under which the transaction is buried (excluding the block in which the transaction is in), null if the transaction is not found. 
+	 * @return The number of blocks under which the transaction is buried (including the block in which the transaction is in), null if the transaction is not found. 
 	 */
 	public Integer getTransactionDepth(Block tip, long txID) {
-		int depth = 0; 
+		int depth = 1; 
 		
 		if (txID == -1) {
 			throw new IllegalArgumentException("Transaction ID must be a positive number, got " + txID);

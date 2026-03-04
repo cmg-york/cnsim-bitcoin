@@ -82,6 +82,11 @@ public class BitcoinNodeFactory extends AbstractNodeFactory {
 								nodeSet.getTotalHashPower() - node.getHashPower()
 								)
 						);
+				
+				((HiddenChainAttackBehavior) strategy).setNetworkHonestPower(
+								nodeSet.getTotalHashPower() - node.getHashPower()
+						);
+				
 
 				if (Config.hasProperty("hiddenChainAttack.releaseAdvantage")) {
 					((HiddenChainAttackBehavior) strategy).setReleaseAdvantage(

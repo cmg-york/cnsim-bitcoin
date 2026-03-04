@@ -538,8 +538,8 @@ class BlockchainTest {
         blockchain.addToStructure(block);
 
         assertEquals(1, keep_1.getHeight(),"getHeight 1");
-    	assertEquals(0, blockchain.getConfirmations(1),"getConfirmations 4");
-    	assertEquals(0, blockchain.getConfirmations(5),"getConfirmations 5");
+    	assertEquals(1, blockchain.getConfirmations(1),"getConfirmations 4");
+    	assertEquals(1, blockchain.getConfirmations(5),"getConfirmations 5");
     	assertEquals(null, blockchain.getConfirmations(7),"getConfirmations 6");
 
         
@@ -575,9 +575,9 @@ class BlockchainTest {
         blockchain.addToStructure(block);
 
         assertEquals(2, keep_2.getHeight(),"getHeight 2");
-    	assertEquals(1, blockchain.getConfirmations(1),"getConfirmations 7");
-    	assertEquals(1, blockchain.getConfirmations(5),"getConfirmations 8");
-    	assertEquals(0, blockchain.getConfirmations(7),"getConfirmations 9");
+    	assertEquals(2, blockchain.getConfirmations(1),"getConfirmations 7");
+    	assertEquals(2, blockchain.getConfirmations(5),"getConfirmations 8");
+    	assertEquals(1, blockchain.getConfirmations(7),"getConfirmations 9");
         
         
         TestTutorial.step("#### Create block {7,8,9,10} and add on top of the first block");
@@ -594,10 +594,10 @@ class BlockchainTest {
         blockchain.addToStructure(block);
 
         assertEquals(3, keep_3.getHeight(),"getHeight 2");
-    	assertEquals(2, blockchain.getConfirmations(1),"getConfirmations 10");
-    	assertEquals(2, blockchain.getConfirmations(5),"getConfirmations 11");
-    	assertEquals(1, blockchain.getConfirmations(7),"getConfirmations 12");
-    	assertEquals(0, blockchain.getConfirmations(11),"getConfirmations 13");
+    	assertEquals(3, blockchain.getConfirmations(1),"getConfirmations 10");
+    	assertEquals(3, blockchain.getConfirmations(5),"getConfirmations 11");
+    	assertEquals(2, blockchain.getConfirmations(7),"getConfirmations 12");
+    	assertEquals(1, blockchain.getConfirmations(11),"getConfirmations 13");
     	assertEquals(null, blockchain.getConfirmations(14),"getConfirmations 14");
     	
         
@@ -625,13 +625,13 @@ class BlockchainTest {
         blockchain.addToStructure(block);
 
         assertEquals(3, keep_4_2.getHeight(),"getHeight 4");
-    	assertEquals(2, blockchain.getConfirmations(1),"getConfirmations 15");
-    	assertEquals(2, blockchain.getConfirmations(5),"getConfirmations 16");
-    	assertEquals(1, blockchain.getConfirmations(7),"getConfirmations 17");
-    	assertEquals(0, blockchain.getConfirmations(11),"getConfirmations 18");
+    	assertEquals(3, blockchain.getConfirmations(1),"getConfirmations 15");
+    	assertEquals(3, blockchain.getConfirmations(5),"getConfirmations 16");
+    	assertEquals(2, blockchain.getConfirmations(7),"getConfirmations 17");
+    	assertEquals(1, blockchain.getConfirmations(11),"getConfirmations 18");
     	assertEquals(null, blockchain.getConfirmations(14),"getConfirmations 19");
-    	assertEquals(0, blockchain.getTransactionDepth(keep_4_2,14),"getTransactionDepth 1");
-    	assertEquals(2, blockchain.getTransactionDepth(keep_4_2,1),"getTransactionDepth 2");
+    	assertEquals(1, blockchain.getTransactionDepth(keep_4_2,14),"getTransactionDepth 1");
+    	assertEquals(3, blockchain.getTransactionDepth(keep_4_2,1),"getTransactionDepth 2");
     	assertEquals(null, blockchain.getTransactionDepth(keep_4_2,12),"getTransactionDepth 3");
         
         // ASSERTIONS
@@ -673,13 +673,13 @@ class BlockchainTest {
         
         // ASSERTIONS
         assertEquals(4, block.getHeight(),"getHeight 5");
-    	assertEquals(3, blockchain.getConfirmations(1),"getConfirmations 20");
-    	assertEquals(3, blockchain.getConfirmations(5),"getConfirmations 21");
-    	assertEquals(2, blockchain.getConfirmations(7),"getConfirmations 22");
+    	assertEquals(4, blockchain.getConfirmations(1),"getConfirmations 20");
+    	assertEquals(4, blockchain.getConfirmations(5),"getConfirmations 21");
+    	assertEquals(3, blockchain.getConfirmations(7),"getConfirmations 22");
     	assertEquals(null, blockchain.getConfirmations(11),"getConfirmations 23");
-    	assertEquals(1, blockchain.getConfirmations(14),"getConfirmations 24");
-    	assertEquals(0, blockchain.getTransactionDepth(keep_4_2,14),"getTransactionDepth 4");
-    	assertEquals(2, blockchain.getTransactionDepth(keep_4_2,1),"getTransactionDepth 5");
+    	assertEquals(2, blockchain.getConfirmations(14),"getConfirmations 24");
+    	assertEquals(1, blockchain.getTransactionDepth(keep_4_2,14),"getTransactionDepth 4");
+    	assertEquals(3, blockchain.getTransactionDepth(keep_4_2,1),"getTransactionDepth 5");
     	assertEquals(null, blockchain.getTransactionDepth(keep_4_2,12),"getTransactionDepth 6");
         
         for (int i=1; i<=10; i++) {
@@ -957,20 +957,20 @@ class BlockchainTest {
         
         // ASSERTIONS
         assertEquals(0, keep_11_10.getHeight(),"getHeight 11");
-    	assertEquals(5, blockchain.getConfirmations(1),"getConfirmations 25");
-    	assertEquals(4, blockchain.getConfirmations(7),"getConfirmations 27");
+    	assertEquals(6, blockchain.getConfirmations(1),"getConfirmations 25");
+    	assertEquals(5, blockchain.getConfirmations(7),"getConfirmations 27");
     	assertEquals(null, blockchain.getConfirmations(11),"getConfirmations 28");
-    	assertEquals(2, blockchain.getConfirmations(16),"getConfirmations 29");
-    	assertEquals(1, blockchain.getConfirmations(18),"getConfirmations 30");
-    	assertEquals(0, blockchain.getConfirmations(23),"getConfirmations 30");
+    	assertEquals(3, blockchain.getConfirmations(16),"getConfirmations 29");
+    	assertEquals(2, blockchain.getConfirmations(18),"getConfirmations 30");
+    	assertEquals(1, blockchain.getConfirmations(23),"getConfirmations 30");
     	assertEquals(null, blockchain.getConfirmations(27),"getConfirmations 32");
-    	assertEquals(3, blockchain.getConfirmations(14),"getConfirmations 29");
-    	assertEquals(0, blockchain.getTransactionDepth(keep_4_2,14),"getTransactionDepth 7");
-    	assertEquals(2, blockchain.getTransactionDepth(keep_4_2,1),"getTransactionDepth 8");
+    	assertEquals(4, blockchain.getConfirmations(14),"getConfirmations 29");
+    	assertEquals(1, blockchain.getTransactionDepth(keep_4_2,14),"getTransactionDepth 7");
+    	assertEquals(3, blockchain.getTransactionDepth(keep_4_2,1),"getTransactionDepth 8");
     	assertEquals(null, blockchain.getTransactionDepth(keep_4_2,12),"getTransactionDepth 9");
         
-    	assertEquals(5, blockchain.getTransactionDepth(keep_11_10,1),"getTransactionDepth 7");
-    	assertEquals(3, blockchain.getTransactionDepth(keep_11_10,15),"getTransactionDepth 8");
+    	assertEquals(6, blockchain.getTransactionDepth(keep_11_10,1),"getTransactionDepth 7");
+    	assertEquals(4, blockchain.getTransactionDepth(keep_11_10,15),"getTransactionDepth 8");
     	assertEquals(null, blockchain.getTransactionDepth(keep_11_10,19),"getTransactionDepth 9");
         
         for (int i=1; i<=10; i++) {
@@ -1023,20 +1023,20 @@ class BlockchainTest {
         // ASSERTIONS
         assertEquals(6, keep_11_10.getHeight(),"getHeight 11 - again");
         
-    	assertEquals(5, blockchain.getConfirmations(1),"getConfirmations 33");
-    	assertEquals(4, blockchain.getConfirmations(7),"getConfirmations 34");
+    	assertEquals(6, blockchain.getConfirmations(1),"getConfirmations 33");
+    	assertEquals(5, blockchain.getConfirmations(7),"getConfirmations 34");
     	assertEquals(null, blockchain.getConfirmations(11),"getConfirmations 35");
-    	assertEquals(2, blockchain.getConfirmations(16),"getConfirmations 36");
-    	assertEquals(1, blockchain.getConfirmations(18),"getConfirmations 37");
-    	assertEquals(0, blockchain.getConfirmations(23),"getConfirmations 38");
+    	assertEquals(3, blockchain.getConfirmations(16),"getConfirmations 36");
+    	assertEquals(2, blockchain.getConfirmations(18),"getConfirmations 37");
+    	assertEquals(1, blockchain.getConfirmations(23),"getConfirmations 38");
     	assertEquals(null, blockchain.getConfirmations(27),"getConfirmations 39");
-    	assertEquals(3, blockchain.getConfirmations(14),"getConfirmations 40");
-    	assertEquals(0, blockchain.getTransactionDepth(keep_4_2,14),"getTransactionDepth 10");
-    	assertEquals(2, blockchain.getTransactionDepth(keep_4_2,1),"getTransactionDepth 11");
+    	assertEquals(4, blockchain.getConfirmations(14),"getConfirmations 40");
+    	assertEquals(1, blockchain.getTransactionDepth(keep_4_2,14),"getTransactionDepth 10");
+    	assertEquals(3, blockchain.getTransactionDepth(keep_4_2,1),"getTransactionDepth 11");
     	assertEquals(null, blockchain.getTransactionDepth(keep_4_2,12),"getTransactionDepth 12");
         
-    	assertEquals(5, blockchain.getTransactionDepth(keep_11_10,1),"getTransactionDepth 13");
-    	assertEquals(3, blockchain.getTransactionDepth(keep_11_10,15),"getTransactionDepth 14");
+    	assertEquals(6, blockchain.getTransactionDepth(keep_11_10,1),"getTransactionDepth 13");
+    	assertEquals(4, blockchain.getTransactionDepth(keep_11_10,15),"getTransactionDepth 14");
     	assertEquals(null, blockchain.getTransactionDepth(keep_11_10,19),"getTransactionDepth 15");
         //Besides...
     	assertEquals(blockchain.getLongestTip().getHeight(), keep_11_10.getHeight(),"Equal Height");

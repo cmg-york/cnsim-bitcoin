@@ -80,6 +80,14 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
      */
     private float honestPower = -1;
 
+    
+	/** 
+	 * The total power of the network excluding the power of the attacker in 
+	 * either attack or idle/monitoring mode
+	 */
+	private float networkHonestPower;
+    
+    
     /**
      * Target transaction ID for the attack (double-spend or orphan attempt).
      * In MONITORING state, the node waits for a block containing this transaction;
@@ -134,6 +142,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
      * Used to calculate the attacker's current advantage.
      */
     private Block hiddenChainTip = null;
+
 
 
     // ================================
@@ -221,18 +230,28 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
             break;
 
         case MONITORING:
-            // In MONITORING, ignore the target transaction (wait for it in a block)
+            // NORMALLY: you should ignore the target transaction 
+        	// (wait for it in a block)
+        	// HOWEVER: we receive it normally here for the purpose of compliance
+        	// with theoretical calculations
             if (t.getID() != targetTransaction) {
                 honestBehavior.event_NodeReceivesClientTransaction(t, time);
             }
-            break;
+            
+                break;
 
         case ATTACKING:
-        	// Accept non-target transactions that do not overlap your hidden chain 
-        	// to maintain honest appearance
+        	// Accept non-target transactions that do not 
+        	// overlap your hidden chain to maintain honest appearance
         	if (!inHiddenChain(t) && !(t.getID() == targetTransaction)) {
         		altHonestBehavior.event_NodeReceivesClientTransaction(t, time);
         	}
+        	
+        	//Actually..
+        	if (t.getID() == targetTransaction) {
+        		throw new IllegalStateException("Receiving target transaction while in attack state. How did I enter attack state if transaction hadn't arrived first?");
+        	}
+        	
             break;
         }
         
@@ -358,6 +377,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
                 	throw new IllegalStateException("hiddenChainTip must be null in MONITORING state.");
                 if (!hiddenChain.isEmpty()) 
                 	throw new IllegalStateException("hiddenChain must be empty in MONITORING state.");
+                
                 // The hidden chain starts from the parent of the block containing the target
                 hiddenChainTip = (Block) ((Block) c).getParent();
                 considerAttacking();
@@ -691,7 +711,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
     		long newTime = node.getNextValidationEvent().getTime(); 
     		
     		if (oldTime < newTime) {
-    			BitcoinReporter.addErrorEntry("*** STAYING to old validation event (oldtime,newtime) =  (" + oldTime + "," + newTime + ")." );
+    			//BitcoinReporter.addErrorEntry("*** STAYING to old validation event (oldtime,newtime) =  (" + oldTime + "," + newTime + ")." );
     			
     			node.getNextValidationEvent().ignoreEvt(true);
     			oldValidationEvent.ignoreEvt(false);
@@ -699,7 +719,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
     			node.setNextValidationEvent(oldValidationEvent);
     			
     		} else {
-    			BitcoinReporter.addErrorEntry("*** SWITHCING to new validation event (oldtime,newtime) =  (" + oldTime + "," + newTime + ")." );
+    			//BitcoinReporter.addErrorEntry("*** SWITHCING to new validation event (oldtime,newtime) =  (" + oldTime + "," + newTime + ")." );
     			node.getNextValidationEvent().ignoreEvt(false);
     			oldValidationEvent.ignoreEvt(true);
     		}
@@ -707,7 +727,6 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
     		if ((node.getNextValidationEvent()!= null) && !node.getNextValidationEvent().ignoreEvt()) {
     			BitcoinReporter.addErrorEntry("*** VERY STRANGE: node not mining and still has next valiation event!");	
     		}
-    			
     	}
     }
     
@@ -851,7 +870,9 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
 	        if ((getCurrentConfirmations() >= getReleaseConfirmations()) && 
 	        (getCurrentAdvantage() >= 1)) {
 	            completeAttack(time);
-	            BitcoinReporter.addErrorEntry("Attack Successful.");
+	            //BitcoinReporter.addErrorEntry(node.getSim().getSimID() + "," + getCurrentConfirmations() + "," + getCurrentAdvantage() + ", true" );
+	        } else {
+	        	//BitcoinReporter.addErrorEntry(node.getSim().getSimID() + "," + getCurrentConfirmations() + "," + getCurrentAdvantage()+ ", false");
 	        }
         }
     }
@@ -911,9 +932,12 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
             }
         }
 
-        
         hiddenChain.clear();
         hiddenChainTip = null;
+        
+        BitcoinReporter.addErrorEntry(getNetworkHonestPower() + "," 
+        + getAttackPower());
+        
         switchToNormalPower();
     }
 
@@ -1121,7 +1145,9 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
     }
 
     /**
-     * Sets the attacker's mining power.
+     * Sets the attacker's mining power, i.e. the power that the attacker 
+     * will assume once the attack starts. The attacker will revert to 
+     * original power after the attack
      *
      * <p><b>JML Contract:</b></p>
      * <pre>{@code
@@ -1154,6 +1180,17 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
         return attackPower;
     }
 
+    
+	public void setNetworkHonestPower(float f) {
+		this.networkHonestPower = f;
+	}
+    
+	public float getNetworkHonestPower() {
+		return (this.networkHonestPower);
+	}
+    
+	
+    
     /**
      * Sets the target transaction for the attack.
      *
@@ -1433,5 +1470,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
         /** Release based on the number of confirmations of the target transaction. */
         CONFIRMATIONS
     }
+
+
     
 }
