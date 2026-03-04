@@ -238,7 +238,7 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
                 honestBehavior.event_NodeReceivesClientTransaction(t, time);
             }
             
-                break;
+            break;
 
         case ATTACKING:
         	// Accept non-target transactions that do not 

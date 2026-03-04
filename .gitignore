@@ -6,4 +6,7 @@ target/
 *.iml
 *.log
 /bin/
+/examples/
+*.sh
+!testRun.sh
 .Rproj.user
