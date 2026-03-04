@@ -1,1 +1,0 @@
-mvn exec:java "-Dexec.args=-c examples/configs/bitcoin.application.properties"
