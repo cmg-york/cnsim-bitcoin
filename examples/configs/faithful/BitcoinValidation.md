@@ -15,13 +15,18 @@
 
 # Preamble
 
-- This document can be reproduced from data via “knitting”
+- This document can be reproduced from preexisting data via “knitting”
   <https://github.com/cmg-york/cnsim-bitcoin/examples/configs/faithful/BitcoinValidation.Rmd>
   that exists in the same directory.
 - The analysis requires R-based logAnalysis tools that can be cloned
   from <https://github.com/cmg-york/cnsim-bitcoin>
 - The variable `logAnalysisToolPath` needs to be set to the directory of
   logAnalysis scripts.
+- To regenerate data run 6 separate instances of:
+  `mvn exec:java -Dexec.args='-c ./examples/configs/faithful/bitcoin.faithful.10node.30sim.X-Y.properties'`
+  where `X` and `Y` the id’s of the simulations. Then have each
+  `df_10Node_{1,2,3,4,5,6}` below point to each output folder produced.
+  See at the bottom expected simulation times on a modern machine.
 
 # Overview
 
