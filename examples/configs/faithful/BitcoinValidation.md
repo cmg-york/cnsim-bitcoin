@@ -1,23 +1,157 @@
 - [Preamble](#preamble)
 - [Overview](#overview)
-- [Cases](#cases)
+- [Experimental Set-Up](#experimental-set-up)
+  - [Difficulty and hashpowers](#difficulty-and-hashpowers)
+  - [Workload design](#workload-design)
+  - [Network and Bandwidth](#network-and-bandwidth)
+  - [Sample Transactions](#sample-transactions)
   - [Authoritative Pace and Bounds](#authoritative-pace-and-bounds)
-  - [10 Node - Faithful](#node---faithful)
-    - [Data Prep](#data-prep)
-    - [Pace Mean and Standard
-      Deviation](#pace-mean-and-standard-deviation)
-    - [Equivalence Test](#equivalence-test)
-    - [Execution Times](#execution-times)
+- [Analysis](#analysis)
+  - [Data Loading and Preparation](#data-loading-and-preparation)
+  - [Pace Mean and Standard
+    Deviation](#pace-mean-and-standard-deviation)
+  - [Equivalence Test](#equivalence-test)
+  - [Execution Times](#execution-times)
 
 # Preamble
 
-The current document can be generated via
+- This document can be reproduced from data via “knitting”
+  <https://github.com/cmg-york/cnsim-bitcoin/examples/configs/faithful/BitcoinValidation.Rmd>
+  that exists in the same directory.
+- The analysis requires R-based logAnalysis tools that can be cloned
+  from <https://github.com/cmg-york/cnsim-bitcoin>
+- The variable `logAnalysisToolPath` needs to be set to the directory of
+  logAnalysis scripts.
 
 # Overview
 
-# Cases
+Configuration file(s):
+<https://github.com/cmg-york/cnsim-bitcoin/examples/configs/faithful/bitcoin.faithful.30node.30sim.XX-XX.properties>
+(where `XX` is to be replaced with the Simulation ID) Workload:
+<https://github.com/cmg-york/cnsim-bitcoin/examples/configs/faithful/bitcoin.faithful-workload.csv>
+Data:
+<https://github.com/cmg-york/cnsim-bitcoin/examples/results/faithful/>
+
+# Experimental Set-Up
+
+We simulate the Bitcoin network with properties as exhibited at a
+specific arbitrary date namely `2024-11-25`. We assume 10 nodes. Each
+node is a stand-in for a greater number of nodes; e.g., a pool. The node
+has the power of the sum of the powers of the nodes it represents. We
+want to study bitcoin for 3 hours of simulated operation time.
+
+## Difficulty and hashpowers
+
+Difficulty is fetched from:
+
+- [CoinWarz](https://www.coinwarz.com/mining/bitcoin/difficulty-chart)
+
+… and at the time of fetching it (`2024-11-25`), it is `102.29T`. We
+need to convert this Bitcoin-specific difficulty to CNSim difficulty
+(search space/success space) using the `BitcoinDIfficulyUtility.java`
+routine `BTCToCNSIM(double BTCDiff)`. The result seen below is given as
+a parameter:
+
+    pow.difficulty = 4.3933637821322E+23
+
+The hashpower of the network estimated on `2024-11-25` is
+`859.34M TH/s`, according to:
+
+- [YCharts](https://ycharts.com/indicators/bitcoin_network_hash_rate)
+
+This is `8.5934e+20 H/s`. For simplicity we assume that this is shared
+among our 10 nodes, so each has an average power `8.5934e+19 H/S`. We
+further assume a `10%` coefficient of variation (CV) so the standard
+deviation will be `8.5934e+18 H/S`. Note that, with this way of
+splitting the hashpowers, summing up the individual hashpowers will
+likely deviate from the original total hashpower measurement. CNSim
+measures power in `GH/s`, so the corresponding exponents are `-10` and
+`-9`:
+
+    pow.hashPowerMean = 8.5934001000e+10
+    pow.hashPowerSD = 8.5934001000e+9
+
+## Workload design
+
+The arrival rate obtained from:
+
+- [Blockchain.com](https://www.blockchain.com/explorer/charts/transactions-per-second)
+
+for the date in question is $`\lambda`$ = `6.494 tx/sec`. That will mean
+a total of `70,135` transactions included in the workload. According to
+the same source the average transaction fee is `$3.366 USD` with
+`1 BTC = $93,003.21 USD`, hence
+`3.366/93,003.21 = 0.00003619229 BTC = 3.619229E-5 BTC = 3,619.23 SATS`.
+We will again assume a CV of `10%` for fees.
+
+In addition we learn from:
+
+- [Bitcoin Visuals](https://bitcoinvisuals.com/chain-tx-size)
+
+… that the average transaction size is `460 bytes`. The web-site offers
+also the 90th, 50th, 10th percentiles to be `491`, `225`, and `181`
+bytes. Although the distribution appears to be a long-tail one, we make
+the simplifying assumption of normality around the median. We will then
+calculate the standard deviation as follows (script in `R`).
+
+    mean <- 225    # Given mean (average)
+    p10 <- 181     # 10th percentile
+    p90 <- 491     # 90th percentile
+
+    # Calculate standard deviation
+    z10 <- qnorm(0.1)  # Z-score for 10th percentile
+    z90 <- qnorm(0.9)  # Z-score for 90th percentile
+    sigma <- (p90 - p10) / (z90 - z10)
+
+Above `sigma` is the sought standard deviation.
+
+Hence the following is the transaction configuration:
+
+    workload.lambda = 6.494f
+    ...
+    workload.txSizeMean = 225f
+    workload.txSizeSD = 120.9471f
+    workload.txFeeValueMean = 3,619.23f
+    workload.txFeeValueSD = 369.19f
+
+## Network and Bandwidth
+
+We finally assume an average `25MBps` end-to-end bandwidth between any
+two nodes with a CV of `10%`. Hence:
+
+    net.throughputMean = 25000f
+    net.throughputSD = 2500f
+
+## Sample Transactions
+
+We use ten (10) transactions (200, 210, …, 290) as the sample of
+transactions on which to perform sanity tests. \## Seed Management All
+experiments use the same network and workload up to transaction `300`,
+after which the random sampler takes over, with different seed in each
+simulation:
+
+    net.sampler.seed = 123
+    net.sampler.seed.updateSeed = false
+
+    workload.sampler.file = ./examples/configs/faithful/bitcoin.faithful-workload.csv
+    workload.sampler.seed = 321
+    workload.sampler.seed.updateSeed = true
+
+At node level, behavior is the same until time `49,090 ms`, where it is
+expected that transaction \# 290 will arrive at the system.
+
+    node.sampler.seed = {444,222}
+    node.sampler.updateSeedFlags = {true,true}
+    node.sampler.seedUpdateTimes = {49,090}
 
 ## Authoritative Pace and Bounds
+
+We learn finally from:
+
+- [BitInfoCharts](https://bitinfocharts.com/comparison/bitcoin-confirmationtime.html)
+
+.. that the average block time that day was `8.521`. We also set an
+interval `[-1.5,1.5]` around that value for the equivalence tests.
 
 ``` r
 auth = 8.521
@@ -25,28 +159,34 @@ low_eqbound = -1.5
 high_eqbound = 1.5
 ```
 
-## 10 Node - Faithful
+# Analysis
 
-### Data Prep
+## Data Loading and Preparation
 
 ``` r
-folder.10 = "../../results/faithful/"  
+folder.10 = "results/faithful/"  
 
-df_10Node_1 = "faithful.10node.30sim.1-5 - 2025.12.03 17.58.53"
+df_10Node_1 = "faithful.10node.30sim.1-5"
 producePaceData(folder.10, df_10Node_1)
-df_10Node_2 = "faithful.10node.30sim.6-10 - 2025.12.03 18.03.06"
+df_10Node_2 = "faithful.10node.30sim.6-10"
 producePaceData(folder.10, df_10Node_2)
-df_10Node_3 = "faithful.10node.30sim.11-15 - 2025.12.03 18.03.32"
+df_10Node_3 = "faithful.10node.30sim.11-15"
 producePaceData(folder.10, df_10Node_3)
-df_10Node_4 = "faithful.10node.30sim.16-20 - 2025.12.03 18.03.56"
+df_10Node_4 = "faithful.10node.30sim.16-20"
 producePaceData(folder.10, df_10Node_4)
-df_10Node_5 = "faithful.10node.30sim.21-25 - 2025.12.03 18.04.34"
+df_10Node_5 = "faithful.10node.30sim.21-25"
 producePaceData(folder.10, df_10Node_5)
-df_10Node_6 = "faithful.10node.30sim.26-30 - 2025.12.03 18.12.24"
+df_10Node_6 = "faithful.10node.30sim.26-30"
+```
+
+For each output folder process the events log to produce the pace data
+for furhter analysis.
+
+``` r
 producePaceData(folder.10, df_10Node_6)
 ```
 
-### Pace Mean and Standard Deviation
+## Pace Mean and Standard Deviation
 
 ``` r
 pacedata.10 = rbind(
@@ -70,7 +210,7 @@ t(pace.10)
     ## Block Time (mins) - Mean....: 7.677753
     ## Block Time (mins) - St. Dev.: 7.586978
 
-### Equivalence Test
+## Equivalence Test
 
 ``` r
 # Turn them to minutes
@@ -87,7 +227,7 @@ TOSTone.raw(
   alpha = 0.05)
 ```
 
-![](BitcoinValidation_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
+![](BitcoinValidation_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
 
     ## TOST results:
     ## t-value lower bound: 2.40    p-value lower bound: 0.008
@@ -111,7 +251,7 @@ TOSTone.raw(
     ## Null Hypothesis Test Result:
     ## The null hypothesis test was significant, t(767) = -3.080, p = 0.00214, given an alpha of 0.05.
 
-### Execution Times
+## Execution Times
 
 ``` r
 runTimes.10 <- rbind(
@@ -128,24 +268,25 @@ runTimes.10
     ## # A tibble: 30 × 3
     ##    SimID sysTime sysTime_formated
     ##    <dbl>   <int> <chr>           
-    ##  1     1  682244 00:11:22.244    
-    ##  2     2 1197227 00:19:57.227    
-    ##  3     3 1268232 00:21:08.232    
-    ##  4     4  929666 00:15:29.666    
-    ##  5     5 1434114 00:23:54.114    
-    ##  6     6 2372053 00:39:32.053    
-    ##  7     7 2108015 00:35:08.015    
-    ##  8     8 2621955 00:43:41.955    
-    ##  9     9  880873 00:14:40.873    
-    ## 10    10  830856 00:13:50.856    
+    ##  1     1  574513 00:09:34.513    
+    ##  2     2 1034126 00:17:14.126    
+    ##  3     3 1117394 00:18:37.394    
+    ##  4     4  829408 00:13:49.408    
+    ##  5     5 1260506 00:21:00.506    
+    ##  6     6 2281195 00:38:01.195    
+    ##  7     7 2055608 00:34:15.608    
+    ##  8     8 2520830 00:42:00.830    
+    ##  9     9  849243 00:14:09.243    
+    ## 10    10  792857 00:13:12.857    
     ## # ℹ 20 more rows
 
+Times in `hh:mm:ss.msec` format.
+
 ``` r
-runTimes.10 %>% summarise(`Run Time (mean)` = format_simtime(as.integer(mean(sysTime))), 
-                       `Run Time (sd)` =  format_simtime(as.integer(sd(sysTime))))
+t(runTimes.10 %>% summarise(`Run Time (mean)` = format_simtime(as.integer(mean(sysTime))), 
+                       `Run Time (sd)` =  format_simtime(as.integer(sd(sysTime)))))
 ```
 
-    ## # A tibble: 1 × 2
-    ##   `Run Time (mean)` `Run Time (sd)`
-    ##   <chr>             <chr>          
-    ## 1 00:24:08.365      00:10:37.082
+    ##                 [,1]          
+    ## Run Time (mean) "00:22:11.606"
+    ## Run Time (sd)   "00:10:10.830"
