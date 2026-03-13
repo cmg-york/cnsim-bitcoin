@@ -51,6 +51,9 @@ public class BitcoinReporter extends Reporter {
 
 	/** Flag indicating whether attack events should be reported */
 	protected static boolean reportAttackEvents;
+
+	/** Flag indicating whether attack events should be reported in detail */
+	protected static boolean reportAttackDetails;
 	
 	
     /** Static initializer to add CSV headers for block, structure, and attack logs */
@@ -72,11 +75,9 @@ public class BitcoinReporter extends Reporter {
 	public static void initialize() {
 		BitcoinReporter.reportBlockEvents(Config.getPropertyBoolean("reporter.reportBlockEvents"));
 		BitcoinReporter.reportStructureEvents(Config.getPropertyBoolean("reporter.reportStructureEvents"));
-		if (Config.hasProperty("reporter.reportAttackEvents")) {
-			BitcoinReporter.reportAttackEvents(Config.getPropertyBoolean("reporter.reportAttackEvents"));
-		} else {
-			BitcoinReporter.reportAttackEvents(false);
-		}
+
+		BitcoinReporter.reportAttackEvents(Config.getOptionalPropertyBoolean("reporter.reportAttackEvents"));
+		BitcoinReporter.reportAttackDetails(Config.getOptionalPropertyBoolean("reporter.reportAttackDetails"));
 	}
 	
 	
@@ -291,6 +292,11 @@ public class BitcoinReporter extends Reporter {
 		BitcoinReporter.reportAttackEvents = reportAttackEvents;
 	}
 
+	public static void reportAttackDetails(boolean reportAttackDetails) {
+		BitcoinReporter.reportAttackDetails = reportAttackDetails;
+	}
+	
+	
     /**
      * Returns whether block-level events are being logged.
      *
@@ -317,6 +323,11 @@ public class BitcoinReporter extends Reporter {
 	public static boolean reportsAttackEvents() {
 		return BitcoinReporter.reportAttackEvents;
 	}
+	
+	public static boolean reportsAttackDetails() {
+		return BitcoinReporter.reportAttackDetails;
+	}
+	
 	
 	
 }

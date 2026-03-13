@@ -230,12 +230,25 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
             break;
 
         case MONITORING:
-            // NORMALLY: you should ignore the target transaction 
-        	// (wait for it in a block)
-        	// HOWEVER: we receive it normally here for the purpose of compliance
-        	// with theoretical calculations
             if (t.getID() != targetTransaction) {
                 honestBehavior.event_NodeReceivesClientTransaction(t, time);
+            } else {
+                // NORMALLY: you should just sensor the target transaction 
+            	// HOWEVER: we receive it normally here for the purpose of compliance
+            	// with theoretical calculations
+            	honestBehavior.event_NodeReceivesClientTransaction(t, time);
+            	if (BitcoinReporter.reportsAttackEvents()) {
+        	        BitcoinReporter.addEvent(
+        	        		node.getSim().getSimID(),
+        	        		-1,
+        	        		Simulation.currTime,
+        	        		-1,
+        	        		"Attacker Receiving Target Transaction (Tx kept)",
+        	        		node.getID(),
+        	        		-1,
+        	        		"Power: " + node.getHashPower() 
+        	        		);
+                }
             }
             
             break;
@@ -448,16 +461,19 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
             break;
 
         case ATTACKING:
-            BitcoinReporter.addEvent(
-            		node.getSim().getSimID(),
-            		-1,
-            		Simulation.currTime,
-            		-1,
-            		"Validating Malicious block",
-            		node.getID(),
-            		-1,
-            		"Hidden Chain: " + printHiddenChainAndContent("-") 
-            		);
+        	if (BitcoinReporter.reportsAttackDetails()) {
+	            BitcoinReporter.addEvent(
+	            		node.getSim().getSimID(),
+	            		-1,
+	            		Simulation.currTime,
+	            		-1,
+	            		"Validating Malicious block",
+	            		node.getID(),
+	            		-1,
+	            		"Hidden Chain: " + printHiddenChainAndContent("-") 
+	            		);
+        	}
+            
             // In ATTACKING, intercept block and add to hidden chain
             nodeCompletesMaliciousValidation(c, time);
             // Check whether the release advantage threshold has been reached
@@ -535,17 +551,18 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
         currentState = State.MONITORING;
         
         
-        
-        BitcoinReporter.addEvent(
-        		node.getSim().getSimID(),
-        		-1,
-        		Simulation.currTime,
-        		-1,
-        		"Going into Monitoring",
-        		node.getID(),
-        		-1,
-        		"Power: " + node.getHashPower() 
-        		);
+        if (BitcoinReporter.reportsAttackEvents()) {
+	        BitcoinReporter.addEvent(
+	        		node.getSim().getSimID(),
+	        		-1,
+	        		Simulation.currTime,
+	        		-1,
+	        		"Going into Monitoring",
+	        		node.getID(),
+	        		-1,
+	        		"Power: " + node.getHashPower() 
+	        		);
+        }
     }
 
     /**
@@ -670,16 +687,18 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
     	//BitcoinReporter.addErrorEntry(Simulation.currTime + ": node going to ATTACK");
         
         
-        BitcoinReporter.addEvent(
-        		node.getSim().getSimID(),
-        		-1,
-        		Simulation.currTime,
-        		-1,
-        		"Attack is Starting",
-        		node.getID(),
-        		-1,
-        		"Power: " + attackPower
-        		);
+        if (BitcoinReporter.reportsAttackEvents()) {
+	        BitcoinReporter.addEvent(
+	        		node.getSim().getSimID(),
+	        		-1,
+	        		Simulation.currTime,
+	        		-1,
+	        		"Attack is Starting",
+	        		node.getID(),
+	        		-1,
+	        		"Power: " + attackPower
+	        		);
+        }
     }
 
     /**
@@ -909,17 +928,29 @@ public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
         // Transition to IDLE before broadcasting so received blocks are processed honestly
         currentState = State.IDLE;
         //BitcoinReporter.addErrorEntry(Simulation.currTime + ": node going to IDLE");
-        
-        BitcoinReporter.addEvent(
-        		node.getSim().getSimID(),
-        		-1,
-        		Simulation.currTime,
-        		-1,
-        		"Releasing chain",
-        		node.getID(),
-        		-1,
-        		"Hidden Chain: " + printHiddenChainAndContent("-") 
-        		);
+        if (BitcoinReporter.reportsAttackDetails()) {
+	        BitcoinReporter.addEvent(
+	        		node.getSim().getSimID(),
+	        		-1,
+	        		Simulation.currTime,
+	        		-1,
+	        		"Releasing chain",
+	        		node.getID(),
+	        		-1,
+	        		"Hidden Chain: " + printHiddenChainAndContent("-") 
+	        		);
+        } else if (BitcoinReporter.reportsAttackEvents()) {
+	        BitcoinReporter.addEvent(
+	        		node.getSim().getSimID(),
+	        		-1,
+	        		Simulation.currTime,
+	        		-1,
+	        		"Releasing chain",
+	        		node.getID(),
+	        		-1,
+	        		"Lenght: " + hiddenChain.size()
+	        		);
+        }
         
         for (Block block : hiddenChain) {
             // Process the block locally as if received from another node
