@@ -1,0 +1,182 @@
+---
+title: "Hidden Chain Attack Analysis"
+author: "Anonymous"
+format: 
+  gfm:
+    toc: true
+    toc-depth: 3
+editor: source
+---
+
+
+```{R echo = FALSE, warning=FALSE, message=FALSE}
+# Main Parameters
+repo = "cmg-york"
+toolsRepo = paste0("https://github.com/", repo,"/cnsim-tools")
+bitcoinRepo = paste0("https://github.com/", repo,"/cnsim-bitcoin")
+
+toBitRepo <- function(x) {
+  return(paste0(bitcoinRepo,x))
+}
+
+# Knitr settings
+knitr::opts_chunk$set(
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+
+# Overview
+
+The following is an analysis of hidden-chain attack simulations for various fractions of power $q$ enjoyed by the attacker vs. that enjoyed by the remaining of the network $p = 1-q$. In the attack implementation in CNSim, the attacking node, upon receiving a block containing the target transaction, boosts its power to match fraction $q$, and initiates the construction of the hidden chain, while behaving honestly in all other ways. Once $z-1$ additional blocks are received from the network, the attacker starts checking if its hidden chain is strictly longer than the honest one and, if yes, releases the chain through scheduling the corresponding sequence of block propagation events. For simplicity and compatibility with the theoretical analysis below, the attacker does not engage in early transaction censorship at the pool synchronization level.
+
+# Theoretical Benchmarks
+
+An analysis of the probability of succeeding has been offered by [Nakamoto themselves](https://bitcoin.org/bitcoin.pdf) and 
+[corroborated independently](https://arxiv.org/abs/1402.2009). First consider that after $z$ confirmations, the expected number of blocks the attacker has mined in that time follows a Poisson distribution with parameter $\lambda = z \, \frac{q}{p}$. The probability of a successful attack consists of the probability $p_{pre}$ that the attacker has already mined more than $k > z + 1$ blocks during the confirmation period, plus the probability $p_{post}$ that the attacker has actually mined $k \leq z + 1$ blocks only at the $z$ confirmation and must close the remaining deficit of $z - k + 2$, via a random walk with a step probability ratio of $q/p$. The corresponding formulae are:
+
+$p_{\mathrm{pre}} = 1 - \sum_{k=0}^{z+1} \frac{\lambda^k e^{-\lambda}}{k!} \hspace{10mm} p_{\mathrm{post}} = \sum_{k=0}^{z+1} \frac{\lambda^k e^{-\lambda}}{k!} \left(\frac{q}{p}\right)^{z-k+2}$
+
+... which results to:
+
+$p_{\mathrm{total}} = 1 - \sum_{k=0}^{z+1} \frac{\lambda^k e^{-\lambda}}{k!} \left(1 - \left(\frac{q}{p}\right)^{z-k+2}\right)$
+
+The above formula is different than the one offered by Nakamoto to match our simulation of the attack in which (a) the attack starts when a block containing the target transaction has already been confirmed, hence the attacker starts at a disadvantage of 1, (b) \`\`catching-up'' with the longest chain is not enough, as the attacker's chain must be longer by at least one for success.
+
+# Experimental Set-up
+
+A network of $30$ nodes is constructed with a mean honest hashpower $2.86e+19$ H/S, connected with each other with extremely high speed connections of $100Gb/s$ so as to prevent block propagation to be a confound. Difficulty is set to $4.4 \cdot 10^{23}$ and transaction sizes to mimicking the target block pace conditions of our earlier validation (10 minutes). To allow for scalability we assume a transaction arrival rate of $\lambda = 0.017$ which is interpreted into about 10 transactions per 10 minutes, hence expecting 10 transactions per block. Average transaction size is set to $5Kb$, and block size to $5MB$ to also preclude block saturation phenomena. We construct random workloads of 10,000 transactions and set the transaction with ID $70$ to be the target. We run a total of 1,000 simulations under different combinations of $q$ (fraction of malicious power) and $z$ number of confirmations before considering release of the hidden chain. As per our methodology, each experiment was treated as 1,000 Bernoulli trials whereby the attacker wins if the target transaction is not final within the entire horizon of the experiment, and looses otherwise. For each experiment an equivalence test was conducted to evaluate whether the observed proportion of successes differed from the theoretical value as per above formulae by more than a $\delta = 0.05$.
+
+The CNSim configuration files can be found in: `r paste0(bitcoinRepo,'/tree/main/examples/configs/attack')`
+
+The files are of the form `confirmation.attack.0.X.Y.FROM.TO.properties`, where `X` is $q\cdot 10$, `Y` is $z$, and `FROM` and `TO` mark a range of 200 simulation IDs.
+
+# Analysis
+
+## Configuration
+
+Variable `logAnalysisToolPath` below needs to point to a local clone of repository `r paste0(toolsRepo,'/R-Tools/src/logAnalysis/')` from where `library.R` can be loaded for performing the analysis.
+
+```{R }
+logAnalysisToolPath = "../../../../cnsim-tools/R-Tools/src/logAnalysis/"
+
+#Library loading
+source(paste0(logAnalysisToolPath,"library.R"))
+```
+
+
+Variable `outputFolder` below needs to point to a local clone of repository `r paste0(bitcoinRepo,'/tree/main/examples/results/attack')` that contains subfolders of the form `confirmation.attack.1.X,Y - ALL`. Remaining parameters stay as-is.
+
+```{R }
+outputFolder = "../../results/attack/"
+
+# Other Parameters
+txVector = c(50,60,70,80,90)
+targetTransaction = 70
+```
+
+## Data Read and Preparation
+
+The function below collects and fuses experimental output and performs statistical analysis for each experimental configuration (values of $q$ and $z$), according to $\delta$. Finality threshold is hardcoded to $0.9$ (i.e. a transaction is believed if 90% of the nodes believe it).
+
+The outcome is a list appended to outer list `df`. Please refer to `library.R` for documentation of individual functions.
+
+```{R }
+run_config <- function(q,z,delta,df) {
+  
+  # Theoretical Values
+  P_satoshi = nakamoto_catchup_confirmations(q,z)
+  
+  # File naming for experimental output
+  run = "ALL"
+  code = paste0("0.",q*100,".",z)
+  experiment = paste0("confirmation.attack.",code," - ", run)
+  
+  # Data Read
+  df[[code]] <- setVars(outputFolder,experiment, txVector)
+  
+  ### Data Load and Transformation
+  #df[[code]]$graphData = prepareGraphData(df[[code]]$beliefData,
+  #                                        alignTimes = TRUE,
+  #                                        VaR = TRUE,
+  #                                        arrivalTimes = getTxArrivalTimes(df[[code]]$inputData,txVector))
+  
+  df[[code]]$finalityData = getFinality(df[[code]]$beliefData,
+                                        alignTimes = TRUE, 
+                                        threshold = 0.9,
+                                        arrivalTimes = getTxArrivalTimes(df[[code]]$inputData,txVector), 
+                                        horizon = "500:00:00.000") %>% 
+    mutate(theoretical = (1- P_satoshi)) %>%
+    select(Transaction, successes, trials, p_val = threstest_p_val, 
+           point_estimate, ci_low, theoretical, ci_high)
+  
+  outcome = with(df[[code]]$finalityData %>% filter(Transaction == targetTransaction),
+                 equivalence_vec(trials, successes, theoretical, delta = delta)) %>%
+    mutate(q = q, z = z)
+  
+  df[[code]]$outcome <- outcome
+  
+  df[[code]]$shortoutcome <- cat("Config: ", code ,"\nT: ",round(1-outcome$theoretical,3), " [", round(1-outcome$upper_bound,3), ",", round(1-outcome$lower_bound,3), "]",
+      "\nE: ",round(1-outcome$observed,3), " [",1-round(outcome$ci_high,3), ",", 1 - round(outcome$ci_low,3), "]",
+      "\n",outcome$result, " (delta=", outcome$delta, ")\n\n", sep = ""
+  )
+  
+  return (df)
+}
+
+
+```
+
+## Experimental Runs
+
+```{R }
+
+# Initialize results list
+df<-list()
+
+# Configurations
+q_vals <- c(0.1, 0.1, 0.2, 0.2, 0.2, 0.2, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4)
+z_vals <- c(  1,   2,   1,   2,   3,   4,   1,   2,   3,   4,   5,   6,   1,   2,   3,   4,   5,   6)
+
+# Analyze each configuration
+for (i in seq_along(q_vals)) {
+  df <- run_config(q_vals[i], z_vals[i], 0.05, df)
+}
+
+# Output precision
+prec = 3
+
+result <- do.call(rbind, lapply(names(df), \(code) df[[code]]$outcome)) %>% 
+  mutate(observed = 1- observed, 
+         low_bound = 1 - upper_bound,
+         ci_l = 1 - ci_high,
+         ci_h = 1 - ci_low,
+         up_bound = 1 - lower_bound,
+         theoretical = 1-theoretical) %>% 
+  mutate(obs = paste0(round(observed,prec)," [",round(ci_l,prec),",",round(ci_h,prec),"]"),
+         theo = paste0(round(theoretical,prec)," [",round(low_bound,prec),",",round(up_bound,prec),"]"),
+         theo2 = paste0(round(theoretical,prec)," $\\pm \\delta$"),
+         theo3 = paste0(round(theoretical,prec)),
+         result = paste0(theo3," | ", obs)
+         ) %>%
+  select(result,q,z) %>%
+  pivot_wider(names_from = z, names_prefix = "z=", values_from = result)
+```
+
+## Output
+
+```{R }
+knitr::kable(result, format = "pipe")
+```
+
+In all cases it is observed that the entire confidence interval was contained within the equivalence bounds of the theoretical $\pm \delta$ with statistical significance threshold $\alpha = 0.05$. 
+
+## Latex Output
+
+```{R }
+print(xtable(result, caption = "[Complete the caption in the paper]"), 
+      include.rownames = FALSE,
+      booktabs = TRUE)
+
+```
