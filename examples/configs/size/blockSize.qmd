@@ -46,7 +46,12 @@ source(paste0(logAnalysisToolPath,"library.R"))
 
 ## Analysis Routines
 
-Variable `outputFolder` must point to the directory where the ouptput of the form `size-factor - XXX - YYYYY` is, normally under `cnsim-bitcoin/examples/results`.
+Variable `outputFolder` must point to the directory where the output of the form `size-factor - XXX - YYYYY` is. Not included in this repo due to large size. Please refer to publication for pointers to data. Alternatively reproduce the data with CNSim and rename files and directories as above, where `XXX` is the workload size (100 and 300), and `YYYYY` is the block size. Block sizes attempted are:
+
+```{R echo = FALSE}
+c(35000,45000,seq(30000,90000,by = 10000))
+```
+
 
 ```{R echo = FALSE, warning=FALSE, message=FALSE}
 

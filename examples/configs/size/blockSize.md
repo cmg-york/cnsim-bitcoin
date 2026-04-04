@@ -69,9 +69,14 @@ Variable `logAnalysisToolPath` must point to the
 
 ## Analysis Routines
 
-Variable `outputFolder` must point to the directory where the ouptput of
-the form `size-factor - XXX - YYYYY` is, normally under
-`cnsim-bitcoin/examples/results`.
+Variable `outputFolder` must point to the directory where the output of
+the form `size-factor - XXX - YYYYY` is. Not included in this repo due
+to large size. Please refer to publication for pointers to data.
+Alternatively reproduce the data with CNSim and rename files and
+directories as above, where `XXX` is the workload size (100 and 300),
+and `YYYYY` is the block size. Block sizes attempted are:
+
+    [1] 35000 45000 30000 40000 50000 60000 70000 80000 90000
 
 ## Finalities
 
@@ -182,7 +187,7 @@ finalityGraph.1 <- ggplot(data =
 finalityGraph.1 
 ```
 
-![](blockSize_files/figure-commonmark/unnamed-chunk-6-1.png)
+![](blockSize_files/figure-commonmark/unnamed-chunk-7-1.png)
 
 ### Individual Graphs
 
@@ -239,7 +244,7 @@ b90 <- getBeliefGraph(graph.data.result %>% filter(bsize == 90000), xlim = c("0:
 grid.arrange(b30,b90,nrow = 1)
 ```
 
-![](blockSize_files/figure-commonmark/unnamed-chunk-7-1.png)
+![](blockSize_files/figure-commonmark/unnamed-chunk-8-1.png)
 
 ## Time to Finality
 
@@ -354,4 +359,4 @@ timeToFinalityGraph <- ggplot(data = time.to.finalities, aes(x = bsize, y=TimeFi
 timeToFinalityGraph
 ```
 
-![](blockSize_files/figure-commonmark/unnamed-chunk-9-1.png)
+![](blockSize_files/figure-commonmark/unnamed-chunk-10-1.png)
