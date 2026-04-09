@@ -1,5 +1,4 @@
-# Exploring Nakamoto consensus configurations using cnsim-tools: an
-Assignment
+# Exploring Nakamoto consensus configurations using cnsim-tools
 Conceptual Modeling Group @ York University
 
 - [Overview](#overview)
@@ -20,9 +19,9 @@ Conceptual Modeling Group @ York University
     assignments)](#3-exploration-activities-individual-assignments)
     - [Activity 1: (Edison, Shafaat, Nina working separatelly without
       LLMs)](#activity-1-edison-shafaat-nina-working-separatelly-without-llms)
-    - [Activity 2: (Anthony, Ghazal working separatelly with as little
-      LLMs as
-      possible)](#activity-2-anthony-ghazal-working-separatelly-with-as-little-llms-as-possible)
+    - [Activity 2: (Anthony, Ghazal, Kasra working separatelly with as
+      little LLMs as
+      possible)](#activity-2-anthony-ghazal-kasra-working-separatelly-with-as-little-llms-as-possible)
     - [Comprehend and Critique inflow/outflow
       Caluclations](#comprehend-and-critique-inflowoutflow-caluclations)
     - [Create an Shiny app](#create-an-shiny-app)
@@ -316,7 +315,7 @@ Produce two graphs:
 - Second graph plots the finality point estimate for each block size as
   above.
 
-### Activity 2: (Anthony, Ghazal working separatelly with as little LLMs as possible)
+### Activity 2: (Anthony, Ghazal, Kasra working separatelly with as little LLMs as possible)
 
 ### Comprehend and Critique inflow/outflow Caluclations
 
