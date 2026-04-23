@@ -10,7 +10,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="generator" content="Apache Maven Doxia Site Renderer 2.0.0" />
-    <title>Driver and Factory – CNSim-based Implementation of Nakamoto Consensus</title>
+    <title>Driver and Factory – CNSim Bitcoin (cnsim-bitcoin)</title>
     <link rel="stylesheet" href="../css/apache-maven-fluido-2.1.0.min.css" />
     <link rel="stylesheet" href="../css/site.css" />
     <link rel="stylesheet" href="../css/print.css" media="print" />
@@ -104,8 +104,7 @@ the simulation loop, and resets global state between runs.</li>
 <li><code>BitcoinSimulatorFactory</code> &#x2014; concrete subclass of the engine's
 <code>SimulatorFactory</code>. Supplies the Bitcoin-specific rule for how the node set
 is populated (honest vs. attacker mix).</li>
-</ul>
-<p>-&#x2013;</p><section><a id="BitcoinMainDriver"></a>
+</ul><hr /><section><a id="BitcoinMainDriver"></a>
 <h2><code>BitcoinMainDriver</code></h2>
 <p>A plain entry-point class &#x2014; no inheritance, no strategy, no state. Its job is
 to orchestrate: read config, run N simulations, flush reports.</p><section><a id="Entry_point"></a>
@@ -179,7 +178,7 @@ simulations, the second run would start with `BlockID=30000` instead of `1`,
 making report diffing and test reproducibility impossible. The reporter
 buffers are **not** reset &#x2014; they are expected to span the whole batch.
 
-   \---
+   ---
 
    ## `BitcoinSimulatorFactory`
 
@@ -237,8 +236,7 @@ honest network.</p></section><section><a id="Configuration_properties_read"></a>
 |-|-|
 |<code>net.numOfNodes</code>|Total number of nodes in the simulation.|
 |<code>hiddenChainAttack.attackingNodes</code>|Count of nodes that run <code>HiddenChainAttackBehavior</code>. Optional; defaults to 0.|
-|<code>node.hashPowerChanges</code>|Dynamic hashpower changes during the run, format <code>{nodeID:newHashPower:time,...}</code>. Placeholder for future scheduling in <code>createSimulation</code>.|</p>
-<p>-&#x2013;</p></section></section><section><a id="How_they_fit_together"></a>
+|<code>node.hashPowerChanges</code>|Dynamic hashpower changes during the run, format <code>{nodeID:newHashPower:time,...}</code>. Placeholder for future scheduling in <code>createSimulation</code>.|</p><hr /></section></section><section><a id="How_they_fit_together"></a>
 <h2>How they fit together</h2>
 
 <pre><code class="nohighlight nocode">BitcoinMainDriver.main

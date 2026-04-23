@@ -8,7 +8,7 @@ the simulation loop, and resets global state between runs.
 `SimulatorFactory`. Supplies the Bitcoin-specific rule for how the node set
 is populated (honest vs. attacker mix).
 
-\---
+---
 
 ## `BitcoinMainDriver`
 
@@ -71,7 +71,7 @@ simulations, the second run would start with `BlockID=30000` instead of `1`,
 making report diffing and test reproducibility impossible. The reporter
 buffers are **not** reset — they are expected to span the whole batch.
 
-   \---
+   ---
 
    ## `BitcoinSimulatorFactory`
 
@@ -134,7 +134,7 @@ honest network.
 |`hiddenChainAttack.attackingNodes`|Count of nodes that run `HiddenChainAttackBehavior`. Optional; defaults to 0.|
 |`node.hashPowerChanges`|Dynamic hashpower changes during the run, format `{nodeID:newHashPower:time,...}`. Placeholder for future scheduling in `createSimulation`.|
 
-\---
+---
 
 ## How they fit together
 

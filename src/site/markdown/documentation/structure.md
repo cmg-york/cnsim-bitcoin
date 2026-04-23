@@ -16,7 +16,7 @@ and a tip list.
 * `BlockHeightComparator` — a sort order (tallest first, then highest-ID first)
 used by the tip-selection logic and by report printing.
 
-\---
+---
 
 ## `Block`
 
@@ -56,7 +56,7 @@ accessors used during chain insertion and traversal.
 * `clone()`, `equals()`, `hashCode()` — standard object operations. `equals`
 compares ID, height, validation metadata, parent, and the last event label.
 
-\---
+---
 
 ## `Blockchain`
 
@@ -140,7 +140,7 @@ analogous format, tagged `orphans`.
 * `printTips(sep)`, `printTipsHash(sep)`, `printLongestChain()` — human-readable
 summaries used in traces.
 
-\---
+---
 
 ## `BlockHeightComparator`
 
@@ -152,7 +152,7 @@ first.
 * `Blockchain.printStructure()` / `printStructureReport(nodeID)` — so the
 generated CSV lists the tip first and genesis last.
 
-\---
+---
 
 
 

@@ -10,7 +10,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="generator" content="Apache Maven Doxia Site Renderer 2.0.0" />
-    <title>Blockchain Structure – CNSim-based Implementation of Nakamoto Consensus</title>
+    <title>Blockchain Structure – CNSim Bitcoin (cnsim-bitcoin)</title>
     <link rel="stylesheet" href="../css/apache-maven-fluido-2.1.0.min.css" />
     <link rel="stylesheet" href="../css/site.css" />
     <link rel="stylesheet" href="../css/print.css" media="print" />
@@ -111,8 +111,7 @@ validation metadata.</li>
 and a tip list.</li>
 <li><code>BlockHeightComparator</code> &#x2014; a sort order (tallest first, then highest-ID first)
 used by the tip-selection logic and by report printing.</li>
-</ul>
-<p>-&#x2013;</p><section><a id="Block"></a>
+</ul><hr /><section><a id="Block"></a>
 <h2><code>Block</code></h2>
 <p>Extends <code>TransactionGroup</code> (from the engine) so a block <em>is</em> a group of
 transactions with a unique ID. On top of that, <code>Block</code> tracks where it sits in
@@ -147,8 +146,7 @@ difficulty, and the computational cycles spent.</li>
 accessors used during chain insertion and traversal.</li>
 <li><code>clone()</code>, <code>equals()</code>, <code>hashCode()</code> &#x2014; standard object operations. <code>equals</code>
 compares ID, height, validation metadata, parent, and the last event label.</li>
-</ul>
-<p>-&#x2013;</p></section></section><section><a id="Blockchain"></a>
+</ul><hr /></section></section><section><a id="Blockchain"></a>
 <h2><code>Blockchain</code></h2>
 <p>Implements <code>IStructure</code>. Each <code>BitcoinNode</code> owns one. It stores three parallel
 views of the same ledger:</p>
@@ -227,8 +225,7 @@ and a trailing <code>blockchain</code> tag; feeds the <code>StructureLog</code> 
 analogous format, tagged <code>orphans</code>.</li>
 <li><code>printTips(sep)</code>, <code>printTipsHash(sep)</code>, <code>printLongestChain()</code> &#x2014; human-readable
 summaries used in traces.</li>
-</ul>
-<p>-&#x2013;</p></section></section><section><a id="BlockHeightComparator"></a>
+</ul><hr /></section></section><section><a id="BlockHeightComparator"></a>
 <h2><code>BlockHeightComparator</code></h2>
 <p>A <code>Comparator&lt;Block&gt;</code> that orders blocks by <strong>descending</strong> height, breaking
 ties by <strong>descending</strong> block ID. Used wherever tallest-first ordering matters:</p>
@@ -238,8 +235,7 @@ ties by <strong>descending</strong> block ID. Used wherever tallest-first orderi
 first.</li>
 <li><code>Blockchain.printStructure()</code> / <code>printStructureReport(nodeID)</code> &#x2014; so the
 generated CSV lists the tip first and genesis last.</li>
-</ul>
-<p>-&#x2013;</p></section></section>        </main>
+</ul><hr /></section></section>        </main>
       </div>
     </div>
     <hr/>
