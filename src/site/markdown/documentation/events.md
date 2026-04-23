@@ -1,2 +1,0 @@
-# Event Ontology
-### *(under construction)*

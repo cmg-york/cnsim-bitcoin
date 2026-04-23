@@ -31,7 +31,7 @@ Split each class into the following sections (as appropriate). The organization 
 // MAIN PUBLIC METHODS
 // ================================
 
-// Accessors to buisiness logic.
+// Accessors to business logic.
 
 // ================================
 // MAIN PRIVATE METHODS

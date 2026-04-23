@@ -33,25 +33,23 @@
         </head>
 
         <menu name="Documentation">
-            <item name="Conceptual Overview" href="documentation/overview.html"/>
-            <item name="Architecture: Main Loop" href="documentation/main.html"/>
-            <item name="Architecture: Events" href="documentation/events.html"/>
-            <item name="Architecture: Samplers" href="documentation/samplers.html"/>
-            <item name="Architecture: Nodes and Behaviors" href="documentation/nodes.html"/>
-            <item name="Architecture: Reporting" href="documentation/reporting.html"/>
-            <item name="Units of Measurement" href="documentation/units.html"/>
+            <item name="Overview" href="documentation/overview.html"/>
+            <item name="Blockchain Structure" href="documentation/structure.html"/>
+            <item name="Honest Behavior" href="documentation/honest.html"/>
+            <item name="Attacking Behavior" href="documentation/attack.html"/>
+            <item name="Custom Reporting" href="documentation/reporter.html"/>
+            <item name="Driver and Factory" href="documentation/driver.html"/>
         </menu>
         <menu name="API Reference">
             <item name="API Reference" href="apidocs/index.html"/>
         </menu>
-        <menu name="Contibutor's Guide">
+        <menu name="Contributor's Guide">
             <item name="Required Style" href="contributors/formatting.html"/>
             <item name="Git Main Worklow" href="contributors/git-workflow.html"/>
             <item name="Commit Conventions" href="contributors/commits.html"/>
             <item name="Documentation Workflow" href="contributors/documentation.html"/>
             <item name="Release Workflow" href="contributors/release.html"/>
             <item name="Deployment Workflow" href="contributors/deploy.html"/>
-            <item name="Architectural Decisions" href="contributors/adr.html"/>
         </menu>
         <menu name="Maven Info">
             <item name="Overview" href="project-info.html"/>

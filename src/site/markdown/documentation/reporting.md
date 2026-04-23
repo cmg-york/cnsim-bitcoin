@@ -1,2 +1,0 @@
-# Reporting Mechanism
-### *(under construction)*

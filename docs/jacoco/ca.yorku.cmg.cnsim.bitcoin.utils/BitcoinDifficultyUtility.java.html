@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BitcoinDifficultyUtility.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CNSim-based Implementation of Nakamoto Consensus</a> &gt; <a href="index.source.html" class="el_package">ca.yorku.cmg.cnsim.bitcoin.utils</a> &gt; <span class="el_source">BitcoinDifficultyUtility.java</span></div><h1>BitcoinDifficultyUtility.java</h1><pre class="source lang-java linenums">package ca.yorku.cmg.cnsim.bitcoin.utils;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.math.MathContext;
+import java.math.RoundingMode;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+<span class="nc" id="L10">public class BitcoinDifficultyUtility {</span>
+	// specified rounding precision TODO verify that bitcoin uses same rounding policy
+<span class="fc" id="L12">	private static MathContext rounding = new MathContext(64, RoundingMode.HALF_EVEN);</span>
+
+	// max value of 64 hex digits (i.e. the search space of hash values)
+<span class="fc" id="L15">	public static final BigDecimal MAX_HASH_VALUE = new BigDecimal(new BigInteger(&quot;F&quot;.repeat(64), 16));</span>
+
+	// hex representation of initial target (i.e. max allowable value of hash - defines the success space)
+	// TODO verify initial target for mining pools, use whichever is more accurate
+	private static final String INITIAL_TARGET_STR = &quot;00000000FFFF0000000000000000000000000000000000000000000000000000&quot;;
+
+	// initial target (target for difficulty of 1) that all difficulties are scaled for
+<span class="fc" id="L22">	public static final BigDecimal INITIAL_TARGET = new BigDecimal(new BigInteger(INITIAL_TARGET_STR, 16));</span>
+
+	// equivalent CNSIM difficulty for the initial bitcoin target (search space/success space)
+<span class="fc" id="L25">	public static final double CNSIM_INITIAL_DIFFICULTY = 1.0/INITIAL_TARGET.divide(MAX_HASH_VALUE, rounding).doubleValue();</span>
+	
+	// six conversions: difficulty &lt;-&gt; CNSIM, bdiff &lt;-&gt; CNSIM, pdiff &lt;-&gt; CNSIM
+	
+	/**
+	 * Converts from Bitcoin difficulty to CNSIM difficulty. 
+	 * Note that when BTC difficulty is given directly, simply scale the converted 
+	 * initial BTC difficulty.
+	 * 
+	 * @param BTCDiff The given Bitcoin difficulty.
+	 * @return The equivalent CNSIM difficulty.
+	 */
+	public static double BTCToCNSIM(double BTCDiff) {
+<span class="fc" id="L38">		return CNSIM_INITIAL_DIFFICULTY * BTCDiff;</span>
+	}
+
+	/**
+	 * Converts from CNSIM difficulty to Bitcoin difficulty.
+	 * Note that we simply scale the converted initial CNSIM to BTC difficulty
+	 * for the current CNSIM difficulty level.
+	 * 
+	 * WARNING: may potentially result in impossible Bitcoin difficulty levels
+	 * if the CNSIM difficulty is too low. Be aware that returned BTC difficulties
+	 * may be less than 1!
+	 * 
+	 * @param CNSIMDiff The given CNSIM difficulty.
+	 * @return The equivalent Bitcoin difficulty.
+	 */
+	public static double CNSIMToBTC(double CNSIMDiff) {
+<span class="fc" id="L54">		return CNSIMDiff/CNSIM_INITIAL_DIFFICULTY;</span>
+	}
+
+	/**
+	 * Often, bitcoin difficulty is not given directly, but implicitly through
+	 * a packed target value (&quot;bits&quot;). This convenience function converts from the 
+	 * packed target value to the equivalent CNSIM difficulty directly.
+	 * 
+	 * @param bits The bitcoin metric representing the truncated current target.
+	 * @return The equivalent CNSIM difficulty.
+	 */
+	public static double packedTargetToCNSIM(String bits) {
+<span class="nc" id="L66">		return BTCToCNSIM(packedTargetToBTCDifficulty(bits).doubleValue());</span>
+	}
+	
+	/**
+	 * Convenience function to directly convert a CNSIM difficulty to the 
+	 * equivalent packed bitcoin target value (bdiff).
+	 * 
+	 * @param CNSIMDiff The given CNSIM difficulty level.
+	 * @return The equivalent bitcoin packed target value.
+	 */
+	public static String CNSIMToPackedTarget(double CNSIMDiff) {
+<span class="nc" id="L77">		return BTCDifficultyToPackedTarget(new BigDecimal(CNSIMToBTC(CNSIMDiff)));</span>
+	}
+
+	/**
+	 * Often, bitcoin difficulty is not given directly, but implicitly through
+	 * a target value (the pool target is the full, untruncated value of this 
+	 * target). This convenience function converts from the pool target value 
+	 * to the equivalent CNSIM difficulty directly.
+	 * 
+	 * @param poolTarget The bitcoin metric representing the full current target.
+	 * @return The equivalent CNSIM difficulty.
+	 */
+	public static double poolTargetToCNSIM(String poolTarget) {
+<span class="nc" id="L90">		return BTCToCNSIM(poolTargetToBTCDifficulty(poolTarget).doubleValue());</span>
+	}
+
+	/**
+	 * Convenience function to directly convert a CNSIM difficulty to the 
+	 * equivalent full bitcoin target value (i.e. pool target value).
+	 * 
+	 * @param CNSIMDiff The given CNSIM difficulty level.
+	 * @return The equivalent bitcoin pool target value.
+	 */
+	public static String CNSIMToPoolTarget(double CNSIMDiff) {
+<span class="nc" id="L101">		return BTCDifficultyToPoolTarget(new BigDecimal(CNSIMToBTC(CNSIMDiff)));</span>
+	}
+	
+	
+
+	// HELPER FUNCTIONS - conversions between packed/pool targets and BTC difficulty
+
+	/**
+	 * Converts current target to equivalent, implied difficulty rating.
+	 * Format of packed target is 8 hex digits, with the first two digits the index,
+	 * and the remaining 6 digits representing the coefficient.
+	 * 
+	 * The target is calculated as: coefficient * 2^(8 * (index - 3)), with the leading
+	 * digits being padded with zeroes. In other words, adding 1 to the value of the 
+	 * index places another two trailing hex zeroes to the target.
+	 * 
+	 * @param bits The bitcoin metric representing the truncated current target.
+	 * @return The equivalent difficulty for this current target.
+	 * @throws IllegalArgumentException The hexstring should be 8 hex digits, and  
+	 * the packed target is a sign bit, which cannot be negative.
+	 */
+	public static BigDecimal packedTargetToBTCDifficulty(String bits) throws IllegalArgumentException {
+		// first check that the string is valid (8 hex digits, optional &quot;0x&quot; prefix)
+<span class="nc" id="L124">		Pattern hexPattern = Pattern.compile(&quot;^(0[xX])?([0-9a-fA-F]{2})([0-9a-fA-F]{6})$&quot;);</span>
+<span class="nc" id="L125">		Matcher hexMatch = hexPattern.matcher(bits);</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">		if(!hexMatch.find()) {</span>
+<span class="nc" id="L127">			throw new IllegalArgumentException(&quot;Target string is not 8 hex digits!&quot;);</span>
+		}
+
+		// convert to hex numbers
+<span class="nc" id="L131">		BigInteger index = new BigInteger(hexMatch.group(2), 16);</span>
+<span class="nc" id="L132">		BigInteger coefficient = new BigInteger(hexMatch.group(3), 16);</span>
+
+		// ensure 24th bit is not set (would indicate negative target) 
+		// Note: this is leading bit of coefficient
+<span class="nc bnc" id="L136" title="All 2 branches missed.">		if((coefficient.intValue() &amp; (1 &lt;&lt; 24)) == 1) {</span>
+<span class="nc" id="L137">			throw new IllegalArgumentException(&quot;Negative target value!&quot;);</span>
+		}
+
+		// calculate actual value of target, noting that:
+		// 2^(8 * (target - 3)) = 2^(4 * 2 * (target - 3)) = (2^4)^(2 * target - 6)
+<span class="nc" id="L142">		int numZeroes = 2 * index.intValue() - 6;</span>
+<span class="nc" id="L143">		BigInteger multiplier = new BigInteger(&quot;16&quot;).pow(numZeroes);</span>
+<span class="nc" id="L144">		BigDecimal target = new BigDecimal(coefficient.multiply(multiplier));</span>
+
+		// calculate implied difficulty from target value
+<span class="nc" id="L147">		BigDecimal difficulty = INITIAL_TARGET.divide(target, rounding);</span>
+
+<span class="nc" id="L149">		return difficulty;</span>
+	}
+
+	/**
+	 * From the pool difficulty (i.e. full, untruncated target value), calculates
+	 * and returns the implied difficulty level.
+	 * 
+	 * @param poolTarget
+	 * @return The equivalent difficulty for this current target.
+	 * @throws IllegalArgumentException The hexstring should be 64 hex digits, and 
+	 * should not be less the minimum target value.
+	 */
+	public static BigDecimal poolTargetToBTCDifficulty(String poolTarget) throws IllegalArgumentException {
+		// first check that the string is valid (64 hex digits, optional &quot;0x&quot; prefix, min 8 leading zeroes)
+<span class="nc" id="L163">		Pattern hexPattern = Pattern.compile(&quot;^(0[xX])?0{8}([0-9a-fA-F]{56})$&quot;);</span>
+<span class="nc" id="L164">		Matcher hexMatch = hexPattern.matcher(poolTarget);</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">		if(!hexMatch.find()) {</span>
+<span class="nc" id="L166">			throw new IllegalArgumentException(&quot;Invalid target value!&quot;);</span>
+		}
+
+		// convert target to actual value
+<span class="nc" id="L170">		BigDecimal target = new BigDecimal(new BigInteger(hexMatch.group(2), 16));</span>
+
+
+		// calculate implied difficulty from target value
+<span class="nc" id="L174">		BigDecimal difficulty = INITIAL_TARGET.divide(target, rounding);</span>
+
+<span class="nc" id="L176">		return difficulty;</span>
+	}
+	
+	/**
+	 * From the bitcoin difficulty, generates the equivalent full target 
+	 * string (i.e. pool target).
+	 * 
+	 * @param difficulty The given level of bitcoin difficulty.
+	 * @return The pool target string implied by the given difficulty.
+	 */
+	public static String BTCDifficultyToPoolTarget(BigDecimal difficulty) {
+		// difficulty is a scaling factor on the initial target
+<span class="nc" id="L188">		BigInteger scaledTarget = INITIAL_TARGET.divide(difficulty, rounding).toBigInteger();</span>
+		
+<span class="nc" id="L190">		String targetStr = String.format(&quot;0x%64S&quot;, scaledTarget.toString(16)).replace(&quot; &quot;, &quot;0&quot;);</span>
+		
+<span class="nc" id="L192">		return targetStr;</span>
+	}
+	
+	// TODO verify that this matches actual BTC behaviour
+	/**
+	 * From the given bitcoin difficulty, generates the packed target string that
+	 * is closest to the specified difficulty.
+	 * 
+	 * @param difficulty The given level of bitcoin difficulty.
+	 * @return The packed target string implied by the given difficulty.
+	 */
+	public static String BTCDifficultyToPackedTarget(BigDecimal difficulty) {
+		// first get full target string
+<span class="nc" id="L205">		String fullTarget = BTCDifficultyToPoolTarget(difficulty);</span>
+		
+		// find six most significant hex digits, noting the leading zeroes
+<span class="nc" id="L208">		Pattern packedPattern = Pattern.compile(&quot;^(0[xX])?(0+)([1-9a-fA-F][0-9a-fA-F]{5})[0-9a-fA-F]+$&quot;);</span>
+<span class="nc" id="L209">		Matcher packedMatch = packedPattern.matcher(fullTarget);</span>
+<span class="nc bnc" id="L210" title="All 2 branches missed.">		if(!packedMatch.find()) {</span>
+<span class="nc" id="L211">			throw new IllegalArgumentException(</span>
+<span class="nc" id="L212">					String.format(&quot;Difficulty %s corresponds to invalid target value: %s%n&quot;, difficulty, fullTarget));</span>
+		}
+		
+<span class="nc" id="L215">		int leadingZeroes = packedMatch.group(2).length();</span>
+<span class="nc" id="L216">		String coefficient = packedMatch.group(3);</span>
+		
+		// generate correct values for the index and coefficient strings, based on count of leading 0s
+		int index;
+		String indexStr;
+		
+		// if it is impossible to correctly place coefficient due to number of leading 0s
+		// (due to index shifting by 2 zeroes at a time) give up a digit to right shift coefficient 
+<span class="nc bnc" id="L224" title="All 2 branches missed.">		if((58 - leadingZeroes) % 2 != 0) {</span>
+			// right shift in coefficient and increase the index 
+			// net effect of one left shift on value, but losing a digit of precision
+<span class="nc" id="L227">			index = (59 - leadingZeroes)/2 + 3;</span>
+<span class="nc" id="L228">			coefficient = String.format(&quot;0%S&quot;, coefficient.substring(0, 5));</span>
+		}else {
+<span class="nc" id="L230">			index = (58 - leadingZeroes)/2 + 3;</span>
+			
+		}
+		
+		// convert to hex
+<span class="nc" id="L235">		indexStr = String.format(&quot;%02X&quot;, index);</span>
+		
+		// construct combined packed target string
+<span class="nc" id="L238">		String targetStr = String.format(&quot;0x%S%S&quot;, indexStr, coefficient);</span>
+		
+<span class="nc" id="L240">		return targetStr;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

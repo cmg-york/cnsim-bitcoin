@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BitcoinSimulatorFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CNSim-based Implementation of Nakamoto Consensus</a> &gt; <a href="index.source.html" class="el_package">ca.yorku.cmg.cnsim.bitcoin</a> &gt; <span class="el_source">BitcoinSimulatorFactory.java</span></div><h1>BitcoinSimulatorFactory.java</h1><pre class="source lang-java linenums">package ca.yorku.cmg.cnsim.bitcoin;
+
+import ca.yorku.cmg.cnsim.bitcoin.node.BitcoinNodeFactory;
+import ca.yorku.cmg.cnsim.engine.Debug;
+import ca.yorku.cmg.cnsim.engine.Simulation;
+import ca.yorku.cmg.cnsim.engine.SimulatorFactory;
+import ca.yorku.cmg.cnsim.engine.config.Config;
+import ca.yorku.cmg.cnsim.engine.event.Event_HashPowerChange;
+import ca.yorku.cmg.cnsim.engine.exceptions.ConfigurationException;
+import ca.yorku.cmg.cnsim.engine.node.AbstractNodeFactory;
+import ca.yorku.cmg.cnsim.engine.node.IMiner;
+import ca.yorku.cmg.cnsim.engine.node.INode;
+import ca.yorku.cmg.cnsim.engine.node.PoWNodeSet;
+
+
+/**
+ * A concrete {@linkplain SimulatorFactory} for Bitcoin network simulations.
+ * &lt;p&gt;
+ * This factory defines how the node set is created for the simulation,
+ * specifically differentiating between honest and malicious Bitcoin nodes.
+ * It uses {@linkplain BitcoinNodeFactory} to generate nodes with specific
+ * roles and properties based on configuration parameters.
+ * &lt;/p&gt;
+ * &lt;p&gt;
+ * The number of honest and malicious nodes is determined by configuration
+ * properties:
+ * &lt;ul&gt;
+ *     &lt;li&gt;{@code net.numOfHonestNodes}&lt;/li&gt;
+ *     &lt;li&gt;{@code net.numOfMaliciousNodes}&lt;/li&gt;
+ * &lt;/ul&gt;
+ *
+ * &lt;p&gt;
+ * This factory also supports dynamic hashpower changes during simulation runtime.
+ * Hashpower changes can be configured using:
+ * &lt;ul&gt;
+ *     &lt;li&gt;{@code node.hashPowerChanges} - Format: {nodeID:newHashPower:time, ...}&lt;/li&gt;
+ * &lt;/ul&gt;
+ *
+ * &lt;p&gt;
+ * Example usage:
+ * &lt;pre&gt;
+ * {@linkplain BitcoinSimulatorFactory} factory = new {@linkplain BitcoinSimulatorFactory}();
+ * {@linkplain Simulation} sim = factory.createSimulation(simID);
+ * &lt;/pre&gt;
+ *
+ * &lt;p&gt;
+ * This class overrides {@linkplain SimulatorFactory#createNodeSet(Simulation)}
+ * to provide a concrete Bitcoin-specific implementation, and overrides
+ * {@linkplain SimulatorFactory#createSimulation(int)} to add hashpower change
+ * event scheduling. All other aspects of simulation setup (network, transaction
+ * workload, reporting, termination) are handled by the default implementations
+ * of base {@linkplain SimulatorFactory}.
+ * &lt;/p&gt;
+ *
+ * @author
+ *   Sotirios Liaskos for the Conceptual Modeling Group @ York University
+ */
+<span class="nc" id="L58">public class BitcoinSimulatorFactory extends SimulatorFactory {</span>
+
+	/**
+	 * Creates and fully configures a new {@link Simulation} instance for Bitcoin.
+	 * &lt;p&gt;
+	 * This method extends the parent's {@link SimulatorFactory#createSimulation(int)}
+	 * by adding hashpower change event scheduling after the base simulation setup.
+	 * &lt;/p&gt;
+	 *
+	 * @param simID a unique identifier for the simulation
+	 * @return a fully initialized and ready-to-run {@link Simulation}
+	 */
+	@Override
+	public Simulation createSimulation(int simID) {
+		// Call parent to create the base simulation
+<span class="nc" id="L73">		Simulation s = super.createSimulation(simID);</span>
+<span class="nc" id="L74">		return s;</span>
+	}
+
+    /**
+     * Creates a {@linkplain PoWNodeSet} for a Bitcoin simulation.
+     * &lt;p&gt;
+     * This method instantiates honest nodes first, using the {@linkplain BitcoinNodeFactory}
+     * with type &quot;Honest&quot;, then switches to a factory for malicious nodes.
+     * The numbers of each node type are retrieved from the configuration.
+     * &lt;/p&gt;
+     *
+     * @param s the {@linkplain Simulation} for which the node set is being created
+     * @return a {@linkplain PoWNodeSet} containing both honest and malicious nodes
+     */
+    @Override
+	public PoWNodeSet createNodeSet(Simulation s) {
+
+    	int honestNodes;
+<span class="nc" id="L92">    	int attackingNodes = 0;</span>
+    	
+<span class="nc bnc" id="L94" title="All 2 branches missed.">    	if (Config.hasProperty(&quot;hiddenChainAttack.attackingNodes&quot;)) {</span>
+<span class="nc" id="L95">    		attackingNodes = Config.getPropertyInt(&quot;hiddenChainAttack.attackingNodes&quot;);</span>
+    	}
+<span class="nc" id="L97">    	honestNodes = Config.getPropertyInt(&quot;net.numOfNodes&quot;) - attackingNodes;</span>
+    	
+<span class="nc" id="L99">    	PoWNodeSet ns = new PoWNodeSet();</span>
+    	
+<span class="nc" id="L101">    	ns.setNodeFactory(new BitcoinNodeFactory(&quot;Honest&quot;, s));</span>
+<span class="nc" id="L102">		ns.addNodes(honestNodes);</span>
+		
+		
+<span class="nc" id="L105">		ns.setNodeFactory(new BitcoinNodeFactory(&quot;Hidden Chain Attack&quot;, s, ns));</span>
+<span class="nc" id="L106">		ns.addNodes(attackingNodes);</span>
+		
+<span class="nc" id="L108">		return ns;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -9,7 +9,6 @@ reviewers: [""]
 
 # Deployment Workflow
 
-### *(under construction)*
 
 \[concrete steps to deploy assuming setup\]
 

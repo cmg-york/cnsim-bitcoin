@@ -1,0 +1,19 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+CNSim-based Implementation of Nakamoto Consensus,ca.yorku.cmg.cnsim.bitcoin.reporter,BitcoinReporter,209,34,21,1,62,12,25,5,14,5
+CNSim-based Implementation of Nakamoto Consensus,ca.yorku.cmg.cnsim.bitcoin,BitcoinMainDriver,102,0,8,0,35,0,8,0,4,0
+CNSim-based Implementation of Nakamoto Consensus,ca.yorku.cmg.cnsim.bitcoin,BitcoinSimulatorFactory,49,0,2,0,13,0,4,0,3,0
+CNSim-based Implementation of Nakamoto Consensus,ca.yorku.cmg.cnsim.bitcoin.utils,BitcoinDifficultyUtility,250,43,10,0,43,6,14,3,9,3
+CNSim-based Implementation of Nakamoto Consensus,ca.yorku.cmg.cnsim.bitcoin.utils,AttackerSuccessProbabilityAnalyzer,88,608,8,32,32,82,10,17,3,4
+CNSim-based Implementation of Nakamoto Consensus,ca.yorku.cmg.cnsim.bitcoin.utils,AttackMetricsCollector,667,0,18,0,123,0,27,0,18,0
+CNSim-based Implementation of Nakamoto Consensus,ca.yorku.cmg.cnsim.bitcoin.utils,AttackMetricsCollector.AttackOutcome,27,0,0,0,9,0,2,0,2,0
+CNSim-based Implementation of Nakamoto Consensus,ca.yorku.cmg.cnsim.bitcoin.structure,BlockHeightComparator,0,26,0,6,0,8,0,5,0,2
+CNSim-based Implementation of Nakamoto Consensus,ca.yorku.cmg.cnsim.bitcoin.structure,Block,79,240,11,17,11,59,16,28,5,25
+CNSim-based Implementation of Nakamoto Consensus,ca.yorku.cmg.cnsim.bitcoin.structure,Blockchain,259,771,25,89,52,204,24,63,6,24
+CNSim-based Implementation of Nakamoto Consensus,ca.yorku.cmg.cnsim.bitcoin.node,BitcoinNode,98,60,2,0,33,22,15,14,14,14
+CNSim-based Implementation of Nakamoto Consensus,ca.yorku.cmg.cnsim.bitcoin.node,DefaultNodeBehavior,140,164,23,21,26,34,20,14,4,8
+CNSim-based Implementation of Nakamoto Consensus,ca.yorku.cmg.cnsim.bitcoin.node,HiddenChainAttackBehavior.State,0,21,0,0,0,4,0,1,0,1
+CNSim-based Implementation of Nakamoto Consensus,ca.yorku.cmg.cnsim.bitcoin.node,HiddenChainAttackBehavior.ReleaseStrategy,0,15,0,0,0,3,0,1,0,1
+CNSim-based Implementation of Nakamoto Consensus,ca.yorku.cmg.cnsim.bitcoin.node,HonestNodeBehaviorLimited,0,12,0,0,0,5,0,3,0,3
+CNSim-based Implementation of Nakamoto Consensus,ca.yorku.cmg.cnsim.bitcoin.node,BitcoinNodeFactory,195,0,15,0,52,0,12,0,4,0
+CNSim-based Implementation of Nakamoto Consensus,ca.yorku.cmg.cnsim.bitcoin.node,HiddenChainAttackBehavior,474,827,73,125,103,235,76,73,7,38
+CNSim-based Implementation of Nakamoto Consensus,ca.yorku.cmg.cnsim.bitcoin.node,HonestNodeBehavior,134,339,24,24,33,90,18,11,0,5

@@ -1,0 +1,344 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AttackMetricsCollector.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CNSim-based Implementation of Nakamoto Consensus</a> &gt; <a href="index.source.html" class="el_package">ca.yorku.cmg.cnsim.bitcoin.utils</a> &gt; <span class="el_source">AttackMetricsCollector.java</span></div><h1>AttackMetricsCollector.java</h1><pre class="source lang-java linenums">package ca.yorku.cmg.cnsim.bitcoin.utils;
+
+import ca.yorku.cmg.cnsim.engine.Debug;
+import ca.yorku.cmg.cnsim.engine.Simulation;
+
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Collects metrics during simulation to compare actual attack outcomes
+ * with theoretical predictions from the Bitcoin whitepaper.
+ * &lt;p&gt;
+ * This class tracks:
+ * &lt;ul&gt;
+ *   &lt;li&gt;Total number of attack attempts&lt;/li&gt;
+ *   &lt;li&gt;Number of successful attacks (attacker chain became longest)&lt;/li&gt;
+ *   &lt;li&gt;Number of failed attacks (honest chain remained longest)&lt;/li&gt;
+ *   &lt;li&gt;Attack durations and block counts&lt;/li&gt;
+ *   &lt;li&gt;Confirmation counts at attack initiation&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;/p&gt;
+ *
+ * @author Amirreza Radjou for the Conceptual Modeling Group @ York University
+ */
+public class AttackMetricsCollector {
+
+    private static AttackMetricsCollector instance;
+
+<span class="nc" id="L32">    private int totalAttackAttempts = 0;</span>
+<span class="nc" id="L33">    private int successfulAttacks = 0;</span>
+<span class="nc" id="L34">    private int failedAttacks = 0;</span>
+
+<span class="nc" id="L36">    private double attackerHashPower = 0.0;</span>
+<span class="nc" id="L37">    private int confirmationsRequired = 0;</span>
+
+    // Track individual attack outcomes
+<span class="nc" id="L40">    private Map&lt;Integer, AttackOutcome&gt; attackOutcomes = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L41">    private int currentAttackId = 0;</span>
+
+    // Statistics
+<span class="nc" id="L44">    private long totalAttackDuration = 0;</span>
+<span class="nc" id="L45">    private int totalHiddenBlocks = 0;</span>
+<span class="nc" id="L46">    private int totalPublicBlocksGenerated = 0;</span>
+
+    /**
+     * Represents the outcome of a single attack attempt.
+     */
+    public static class AttackOutcome {
+        public final int attackId;
+        public final long startTime;
+        public long endTime;
+        public boolean successful;
+        public int hiddenBlocksMined;
+        public int publicBlocksMined;
+        public int confirmationsAtStart;
+        public String endReason; // &quot;SUCCESS&quot;, &quot;FAILED&quot;, &quot;TIMEOUT&quot;
+
+<span class="nc" id="L61">        public AttackOutcome(int attackId, long startTime, int confirmationsAtStart) {</span>
+<span class="nc" id="L62">            this.attackId = attackId;</span>
+<span class="nc" id="L63">            this.startTime = startTime;</span>
+<span class="nc" id="L64">            this.confirmationsAtStart = confirmationsAtStart;</span>
+<span class="nc" id="L65">            this.hiddenBlocksMined = 0;</span>
+<span class="nc" id="L66">            this.publicBlocksMined = 0;</span>
+<span class="nc" id="L67">            this.endReason = &quot;ONGOING&quot;;</span>
+<span class="nc" id="L68">        }</span>
+
+        public long getDuration() {
+<span class="nc" id="L71">            return endTime - startTime;</span>
+        }
+    }
+
+    /**
+     * Private constructor for singleton pattern.
+     */
+<span class="nc" id="L78">    private AttackMetricsCollector() {</span>
+<span class="nc" id="L79">    }</span>
+
+    /**
+     * Gets the singleton instance of the metrics collector.
+     *
+     * @return the metrics collector instance
+     */
+    public static AttackMetricsCollector getInstance() {
+<span class="nc bnc" id="L87" title="All 2 branches missed.">        if (instance == null) {</span>
+<span class="nc" id="L88">            instance = new AttackMetricsCollector();</span>
+        }
+<span class="nc" id="L90">        return instance;</span>
+    }
+
+    /**
+     * Resets all collected metrics. Should be called at the start of a new simulation.
+     */
+    public void reset() {
+<span class="nc" id="L97">        totalAttackAttempts = 0;</span>
+<span class="nc" id="L98">        successfulAttacks = 0;</span>
+<span class="nc" id="L99">        failedAttacks = 0;</span>
+<span class="nc" id="L100">        attackOutcomes.clear();</span>
+<span class="nc" id="L101">        currentAttackId = 0;</span>
+<span class="nc" id="L102">        totalAttackDuration = 0;</span>
+<span class="nc" id="L103">        totalHiddenBlocks = 0;</span>
+<span class="nc" id="L104">        totalPublicBlocksGenerated = 0;</span>
+<span class="nc" id="L105">    }</span>
+
+    /**
+     * Sets the attack configuration parameters.
+     *
+     * @param attackerHashPower the proportion of network hashpower controlled by attacker
+     * @param confirmationsRequired the number of confirmations before attack starts
+     */
+    public void setConfiguration(double attackerHashPower, int confirmationsRequired) {
+<span class="nc" id="L114">        this.attackerHashPower = attackerHashPower;</span>
+<span class="nc" id="L115">        this.confirmationsRequired = confirmationsRequired;</span>
+<span class="nc" id="L116">    }</span>
+
+    /**
+     * Records the start of a new attack attempt.
+     *
+     * @param confirmationsAtStart the number of confirmations the target transaction had
+     * @return the attack ID for tracking this specific attack
+     */
+    public int recordAttackStart(int confirmationsAtStart) {
+<span class="nc" id="L125">        int attackId = currentAttackId++;</span>
+<span class="nc" id="L126">        totalAttackAttempts++;</span>
+
+<span class="nc" id="L128">        AttackOutcome outcome = new AttackOutcome(attackId, Simulation.currTime, confirmationsAtStart);</span>
+<span class="nc" id="L129">        attackOutcomes.put(attackId, outcome);</span>
+
+<span class="nc" id="L131">        Debug.p(String.format(&quot;[Attack %d] Started at time %d with %d confirmations&quot;,</span>
+<span class="nc" id="L132">            attackId, Simulation.currTime, confirmationsAtStart));</span>
+
+<span class="nc" id="L134">        return attackId;</span>
+    }
+
+    /**
+     * Records that the attacker mined a hidden block.
+     *
+     * @param attackId the ID of the ongoing attack
+     */
+    public void recordHiddenBlockMined(int attackId) {
+<span class="nc" id="L143">        AttackOutcome outcome = attackOutcomes.get(attackId);</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">        if (outcome != null) {</span>
+<span class="nc" id="L145">            outcome.hiddenBlocksMined++;</span>
+<span class="nc" id="L146">            totalHiddenBlocks++;</span>
+        }
+<span class="nc" id="L148">    }</span>
+
+    /**
+     * Records that the public (honest) chain grew.
+     *
+     * @param attackId the ID of the ongoing attack
+     */
+    public void recordPublicBlockMined(int attackId) {
+<span class="nc" id="L156">        AttackOutcome outcome = attackOutcomes.get(attackId);</span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">        if (outcome != null) {</span>
+<span class="nc" id="L158">            outcome.publicBlocksMined++;</span>
+<span class="nc" id="L159">            totalPublicBlocksGenerated++;</span>
+        }
+<span class="nc" id="L161">    }</span>
+
+    /**
+     * Records a successful attack (attacker's chain became longest).
+     *
+     * @param attackId the ID of the attack
+     */
+    public void recordAttackSuccess(int attackId) {
+<span class="nc" id="L169">        AttackOutcome outcome = attackOutcomes.get(attackId);</span>
+<span class="nc bnc" id="L170" title="All 2 branches missed.">        if (outcome != null) {</span>
+<span class="nc" id="L171">            outcome.successful = true;</span>
+<span class="nc" id="L172">            outcome.endTime = Simulation.currTime;</span>
+<span class="nc" id="L173">            outcome.endReason = &quot;SUCCESS&quot;;</span>
+<span class="nc" id="L174">            successfulAttacks++;</span>
+<span class="nc" id="L175">            totalAttackDuration += outcome.getDuration();</span>
+
+<span class="nc" id="L177">            Debug.p(String.format(&quot;[Attack %d] SUCCEEDED at time %d (duration: %d, hidden blocks: %d, public blocks: %d)&quot;,</span>
+<span class="nc" id="L178">                attackId, Simulation.currTime, outcome.getDuration(),</span>
+<span class="nc" id="L179">                outcome.hiddenBlocksMined, outcome.publicBlocksMined));</span>
+        }
+<span class="nc" id="L181">    }</span>
+
+    /**
+     * Records a failed attack (honest chain remained longest).
+     *
+     * @param attackId the ID of the attack
+     */
+    public void recordAttackFailure(int attackId) {
+<span class="nc" id="L189">        AttackOutcome outcome = attackOutcomes.get(attackId);</span>
+<span class="nc bnc" id="L190" title="All 2 branches missed.">        if (outcome != null) {</span>
+<span class="nc" id="L191">            outcome.successful = false;</span>
+<span class="nc" id="L192">            outcome.endTime = Simulation.currTime;</span>
+<span class="nc" id="L193">            outcome.endReason = &quot;FAILED&quot;;</span>
+<span class="nc" id="L194">            failedAttacks++;</span>
+<span class="nc" id="L195">            totalAttackDuration += outcome.getDuration();</span>
+
+<span class="nc" id="L197">            Debug.p(String.format(&quot;[Attack %d] FAILED at time %d (duration: %d, hidden blocks: %d, public blocks: %d)&quot;,</span>
+<span class="nc" id="L198">                attackId, Simulation.currTime, outcome.getDuration(),</span>
+<span class="nc" id="L199">                outcome.hiddenBlocksMined, outcome.publicBlocksMined));</span>
+        }
+<span class="nc" id="L201">    }</span>
+
+    /**
+     * Gets the current success rate.
+     *
+     * @return the proportion of successful attacks
+     */
+    public double getSuccessRate() {
+<span class="nc bnc" id="L209" title="All 2 branches missed.">        if (totalAttackAttempts == 0) {</span>
+<span class="nc" id="L210">            return 0.0;</span>
+        }
+<span class="nc" id="L212">        return (double) successfulAttacks / totalAttackAttempts;</span>
+    }
+
+    /**
+     * Gets the total number of attack attempts.
+     *
+     * @return the total attempts
+     */
+    public int getTotalAttackAttempts() {
+<span class="nc" id="L221">        return totalAttackAttempts;</span>
+    }
+
+    /**
+     * Gets the number of successful attacks.
+     *
+     * @return the successful attack count
+     */
+    public int getSuccessfulAttacks() {
+<span class="nc" id="L230">        return successfulAttacks;</span>
+    }
+
+    /**
+     * Gets the number of failed attacks.
+     *
+     * @return the failed attack count
+     */
+    public int getFailedAttacks() {
+<span class="nc" id="L239">        return failedAttacks;</span>
+    }
+
+    /**
+     * Generates a summary report of all collected metrics.
+     *
+     * @return a formatted string containing the metrics summary
+     */
+    public String generateSummaryReport() {
+<span class="nc" id="L248">        StringBuilder report = new StringBuilder();</span>
+<span class="nc" id="L249">        report.append(&quot;=&quot;.repeat(80)).append(&quot;\n&quot;);</span>
+<span class="nc" id="L250">        report.append(&quot;Attack Metrics Summary\n&quot;);</span>
+<span class="nc" id="L251">        report.append(&quot;=&quot;.repeat(80)).append(&quot;\n&quot;);</span>
+<span class="nc" id="L252">        report.append(String.format(&quot;Configuration:\n&quot;));</span>
+<span class="nc" id="L253">        report.append(String.format(&quot;  Attacker Hashpower: %.2f (%.1f%%)\n&quot;, attackerHashPower, attackerHashPower * 100));</span>
+<span class="nc" id="L254">        report.append(String.format(&quot;  Confirmations Required: %d\n&quot;, confirmationsRequired));</span>
+<span class="nc" id="L255">        report.append(String.format(&quot;\n&quot;));</span>
+<span class="nc" id="L256">        report.append(String.format(&quot;Attack Statistics:\n&quot;));</span>
+<span class="nc" id="L257">        report.append(String.format(&quot;  Total Attempts:      %d\n&quot;, totalAttackAttempts));</span>
+<span class="nc" id="L258">        report.append(String.format(&quot;  Successful:          %d (%.2f%%)\n&quot;,</span>
+<span class="nc" id="L259">            successfulAttacks, (getSuccessRate() * 100)));</span>
+<span class="nc" id="L260">        report.append(String.format(&quot;  Failed:              %d (%.2f%%)\n&quot;,</span>
+<span class="nc" id="L261">            failedAttacks, ((double) failedAttacks / totalAttackAttempts * 100)));</span>
+<span class="nc" id="L262">        report.append(String.format(&quot;\n&quot;));</span>
+
+<span class="nc bnc" id="L264" title="All 2 branches missed.">        if (totalAttackAttempts &gt; 0) {</span>
+<span class="nc" id="L265">            report.append(String.format(&quot;Block Statistics:\n&quot;));</span>
+<span class="nc" id="L266">            report.append(String.format(&quot;  Average Hidden Blocks per Attack:  %.2f\n&quot;,</span>
+<span class="nc" id="L267">                (double) totalHiddenBlocks / totalAttackAttempts));</span>
+<span class="nc" id="L268">            report.append(String.format(&quot;  Average Public Blocks during Attack: %.2f\n&quot;,</span>
+<span class="nc" id="L269">                (double) totalPublicBlocksGenerated / totalAttackAttempts));</span>
+<span class="nc" id="L270">            report.append(String.format(&quot;  Average Attack Duration: %.2f time units\n&quot;,</span>
+<span class="nc" id="L271">                (double) totalAttackDuration / totalAttackAttempts));</span>
+        }
+
+<span class="nc" id="L274">        report.append(&quot;=&quot;.repeat(80)).append(&quot;\n&quot;);</span>
+
+<span class="nc" id="L276">        return report.toString();</span>
+    }
+
+    /**
+     * Generates a comparison report with theoretical predictions.
+     *
+     * @return a formatted comparison report
+     */
+    public String generateComparisonReport() {
+<span class="nc bnc" id="L285" title="All 2 branches missed.">        if (totalAttackAttempts == 0) {</span>
+<span class="nc" id="L286">            return &quot;No attack data collected yet.\n&quot;;</span>
+        }
+
+<span class="nc" id="L289">        StringBuilder report = new StringBuilder();</span>
+<span class="nc" id="L290">        report.append(generateSummaryReport());</span>
+<span class="nc" id="L291">        report.append(&quot;\n&quot;);</span>
+<span class="nc" id="L292">        report.append(AttackerSuccessProbabilityAnalyzer.compareWithSimulation(</span>
+            attackerHashPower,
+            confirmationsRequired,
+<span class="nc" id="L295">            getSuccessRate(),</span>
+            totalAttackAttempts
+        ));
+
+<span class="nc" id="L299">        return report.toString();</span>
+    }
+
+    /**
+     * Exports detailed attack outcomes to a CSV file for further analysis.
+     *
+     * @param filename the output file path
+     * @throws IOException if file writing fails
+     */
+    public void exportToCSV(String filename) throws IOException {
+<span class="nc" id="L309">        try (PrintWriter writer = new PrintWriter(new FileWriter(filename))) {</span>
+            // Write header
+<span class="nc" id="L311">            writer.println(&quot;AttackID,StartTime,EndTime,Duration,Successful,HiddenBlocks,PublicBlocks,ConfirmationsAtStart,EndReason&quot;);</span>
+
+            // Write data
+<span class="nc bnc" id="L314" title="All 2 branches missed.">            for (AttackOutcome outcome : attackOutcomes.values()) {</span>
+<span class="nc" id="L315">                writer.printf(&quot;%d,%d,%d,%d,%b,%d,%d,%d,%s\n&quot;,</span>
+<span class="nc" id="L316">                    outcome.attackId,</span>
+<span class="nc" id="L317">                    outcome.startTime,</span>
+<span class="nc" id="L318">                    outcome.endTime,</span>
+<span class="nc" id="L319">                    outcome.getDuration(),</span>
+<span class="nc" id="L320">                    outcome.successful,</span>
+<span class="nc" id="L321">                    outcome.hiddenBlocksMined,</span>
+<span class="nc" id="L322">                    outcome.publicBlocksMined,</span>
+<span class="nc" id="L323">                    outcome.confirmationsAtStart,</span>
+                    outcome.endReason
+                );
+<span class="nc" id="L326">            }</span>
+        }
+<span class="nc" id="L328">    }</span>
+
+    /**
+     * Prints the current metrics to debug output.
+     */
+    public void printCurrentMetrics() {
+<span class="nc" id="L334">        Debug.p(generateSummaryReport());</span>
+<span class="nc" id="L335">    }</span>
+
+    /**
+     * Prints the comparison with theoretical model to debug output.
+     */
+    public void printComparison() {
+<span class="nc" id="L341">        Debug.p(generateComparisonReport());</span>
+<span class="nc" id="L342">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

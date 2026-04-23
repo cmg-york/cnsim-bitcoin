@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Block.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CNSim-based Implementation of Nakamoto Consensus</a> &gt; <a href="index.source.html" class="el_package">ca.yorku.cmg.cnsim.bitcoin.structure</a> &gt; <span class="el_source">Block.java</span></div><h1>Block.java</h1><pre class="source lang-java linenums">package ca.yorku.cmg.cnsim.bitcoin.structure;
+
+import ca.yorku.cmg.cnsim.engine.node.PoWNode;
+import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
+import ca.yorku.cmg.cnsim.engine.transaction.TransactionGroup;
+
+import java.util.List;
+import java.util.Objects;
+
+/**
+ * Represents a block in a blockchain. A {@linkplain Block} extends {@linkplain TransactionGroup} and contains
+ * information about the block's position in the chain, validation statistics, and node ownership.
+ * &lt;p&gt;
+ * This class is designed for use in blockchain simulations and supports cloning and equality checks.
+ * 
+ * @author Sotirios Liaskos for the Conceptual Modeling Group @ York University
+ * @see TransactionGroup
+ * @see PoWNode
+ * @see Transaction
+ */
+public class Block extends TransactionGroup implements Cloneable {
+
+    // ---------------------------------------------------------
+	// Unique Block ID &amp; ID Management
+    // ---------------------------------------------------------
+
+<span class="fc" id="L27">    private static int currID = 1;</span>
+
+    /**
+     * Retrieves the next unique ID for a new {@linkplain Block}.
+     *
+     * @return the next block ID
+     */
+    public static int getNextID() {
+<span class="fc" id="L35">        return currID++;</span>
+    }
+
+    /**
+     * Resets the next available block ID to 1.
+     * Useful for when starting a new simulation run.
+     */
+    public static void resetCurrID() {
+<span class="nc" id="L43">        currID = 1;</span>
+<span class="nc" id="L44">    }</span>
+    
+    public static int getCurrID() {
+<span class="fc" id="L47">        return currID;</span>
+    }
+
+    public static void setCurrID(int currID) {
+<span class="fc" id="L51">        Block.currID = currID;</span>
+<span class="fc" id="L52">    }</span>
+    
+
+    
+    //---------------------------------------------------------
+    // FIELDS
+    //---------------------------------------------------------
+
+    /** Parent block in the blockchain (if any). */
+<span class="fc" id="L61">    private TransactionGroup parent = null;</span>
+
+    /** Height of this block in the blockchain (if in one). */
+<span class="fc" id="L64">    private int height = 0;</span>
+
+
+    /** Simulation and system validation timestamps. */
+<span class="fc" id="L68">    private long simTime_validation = -1;</span>
+<span class="fc" id="L69">    private long sysTime_validation = -1;</span>
+
+    /** Node IDs for validation and current possession. */
+<span class="fc" id="L72">    private int validationNodeID = -1;</span>
+<span class="fc" id="L73">    private int currentNodeID = -1;</span>
+
+    /** Difficulty under which validation took place */
+<span class="fc" id="L76">    private double validationDifficulty = -1;</span>
+
+    /** Cycles dedicated for the validation of the block */
+<span class="fc" id="L79">    private double validationCycles = -1;</span>
+
+    /** Last event that happened to the block */
+<span class="fc" id="L82">    private String lastBlockEvent = &quot;-1&quot;;</span>
+   
+    
+    
+    // ---------------------------------------------------------
+	// CONSTRUCTORS
+    // ---------------------------------------------------------
+
+    /**
+     * Constructs a new Block object with the next available ID.
+     */
+<span class="fc" id="L93">    public Block() {</span>
+<span class="fc" id="L94">        groupID = getNextID();</span>
+<span class="fc" id="L95">    }</span>
+
+    /**
+     * Constructs a new Block with a unique ID and an initial list of {@linkplain Transaction}s.
+     *
+     * @param initial initial list of transactions
+     */
+    public Block(List&lt;Transaction&gt; initial) {
+<span class="fc" id="L103">        super(initial);</span>
+<span class="fc" id="L104">        groupID = getNextID();</span>
+<span class="fc" id="L105">    }</span>
+
+    
+    
+    // -------------------------------------------
+    // MAIN METHODS
+    // -------------------------------------------
+
+    /**
+     * Updates this {@linkplain Block} with validation information.
+     * Typically invoked in response to a block validation event.
+     *
+     * @param newTransList the {@linkplain TransactionGroup} representing validated transactions
+     * @param simTime      simulation time of the validation
+     * @param sysTime      system time of the validation
+     * @param nodeID       ID of the {@linkplain PoWNode} performing validation
+     * @param eventType    textual description of the event (for logging)
+     * @param difficulty   difficulty under which the block was validated
+     *                     TODO: check if this is correct.
+     * @param cycles       computational cycles spent for validation
+     */
+    public void validateBlock(
+            TransactionGroup newTransList,
+            long simTime,
+            long sysTime,
+            int nodeID,
+            String eventType,
+            double difficulty,
+            double cycles
+    ) {
+    	/** Update statistics about the block based on the contained transactions */
+<span class="fc" id="L136">        super.updateTransactionGroup(newTransList.getTransactions());</span>
+
+        /** Record block information */
+<span class="fc" id="L139">        simTime_validation = simTime;</span>
+<span class="fc" id="L140">        sysTime_validation = sysTime;</span>
+<span class="fc" id="L141">        validationNodeID = nodeID;</span>
+<span class="fc" id="L142">        currentNodeID = nodeID;</span>
+<span class="fc" id="L143">        validationDifficulty = difficulty;</span>
+<span class="fc" id="L144">        validationCycles = cycles;</span>
+<span class="fc" id="L145">    }</span>
+
+
+
+    // ------------------------------------------
+    // OVERRIDDEN METHODS: IDENTITY AND CLONING
+    // ------------------------------------------
+
+    
+    /**
+     * Returns a shallow copy of this block.
+     *
+     * @return a clone of this block
+     * @throws CloneNotSupportedException if the superclass does not support cloning
+     */
+    @Override
+    public Object clone() throws CloneNotSupportedException {
+<span class="fc" id="L162">        return super.clone();</span>
+    }
+
+    @Override
+    public boolean equals(Object other) {
+<span class="fc bfc" id="L167" title="All 2 branches covered.">        if (this == other) return true;</span>
+<span class="pc bpc" id="L168" title="2 of 4 branches missed.">        if (other == null || getClass() != other.getClass()) return false;</span>
+<span class="fc" id="L169">        Block block = (Block) other;</span>
+<span class="pc bpc" id="L170" title="5 of 12 branches missed.">        return getID() == block.getID() /* NEW */ </span>
+        		&amp;&amp; height == block.height
+                &amp;&amp; simTime_validation == block.simTime_validation
+                &amp;&amp; sysTime_validation == block.sysTime_validation
+                &amp;&amp; validationNodeID == block.validationNodeID
+                &amp;&amp; currentNodeID == block.currentNodeID
+<span class="pc bpc" id="L176" title="1 of 2 branches missed.">                &amp;&amp; Double.compare(validationDifficulty, block.validationDifficulty) == 0</span>
+<span class="pc bpc" id="L177" title="1 of 2 branches missed.">                &amp;&amp; Double.compare(validationCycles, block.validationCycles) == 0</span>
+<span class="pc bpc" id="L178" title="1 of 2 branches missed.">                &amp;&amp; Objects.equals(parent, block.parent)</span>
+<span class="pc bpc" id="L179" title="1 of 2 branches missed.">                &amp;&amp; Objects.equals(lastBlockEvent, block.lastBlockEvent);</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="nc" id="L184">        return Objects.hash(</span>
+        		//context,
+<span class="nc" id="L186">        		getID(), /* NEW */</span>
+<span class="nc" id="L187">        		parent, height, simTime_validation, sysTime_validation, validationNodeID, currentNodeID, validationDifficulty, validationCycles, lastBlockEvent);</span>
+    }
+
+
+
+
+
+    
+    
+    // ---------------------------------------------------------
+    // GETTERS, SETTERS AND OTHER UTILITY METHODS
+    // ---------------------------------------------------------
+    
+    
+    /**
+     * Checks if the {@linkplain Block} has a parent.
+     *
+     * @return {@code true} if the block has a parent, {@code false} otherwise.
+     */
+    public boolean hasParent() {
+<span class="fc bfc" id="L207" title="All 2 branches covered.">        return parent != null;</span>
+    }
+    
+    public TransactionGroup getParent() {
+<span class="fc" id="L211">        return parent;</span>
+    }
+
+    public void setParent(TransactionGroup parent) {
+<span class="fc" id="L215">        this.parent = parent;</span>
+<span class="fc" id="L216">    }</span>
+
+    public int getHeight() {
+<span class="fc" id="L219">        return height;</span>
+    }
+
+    public void setHeight(int height) {
+<span class="fc" id="L223">        this.height = height;</span>
+<span class="fc" id="L224">    }</span>
+
+    public long getSimTime_validation() {
+<span class="fc" id="L227">        return simTime_validation;</span>
+    }
+
+    public void setSimTime_validation(long simTime_validation) {
+<span class="nc" id="L231">        this.simTime_validation = simTime_validation;</span>
+<span class="nc" id="L232">    }</span>
+
+    public long getSysTime_validation() {
+<span class="fc" id="L235">        return sysTime_validation;</span>
+    }
+
+    public void setSysTime_validation(long sysTime_validation) {
+<span class="nc" id="L239">        this.sysTime_validation = sysTime_validation;</span>
+<span class="nc" id="L240">    }</span>
+
+    public int getValidationNodeID() {
+<span class="fc" id="L243">        return validationNodeID;</span>
+    }
+
+    public void setValidationNodeID(int validationNodeID) {
+<span class="nc" id="L247">        this.validationNodeID = validationNodeID;</span>
+<span class="nc" id="L248">    }</span>
+
+    public int getCurrentNodeID() {
+<span class="fc" id="L251">        return currentNodeID;</span>
+    }
+
+    public void setCurrentNodeID(int currentNodeID) {
+<span class="fc" id="L255">        this.currentNodeID = currentNodeID;</span>
+<span class="fc" id="L256">    }</span>
+
+    public double getValidationDifficulty() {
+<span class="fc" id="L259">        return validationDifficulty;</span>
+    }
+
+    public void setValidationDifficulty(double validationDifficulty) {
+<span class="fc" id="L263">        this.validationDifficulty = validationDifficulty;</span>
+<span class="fc" id="L264">    }</span>
+
+    public double getValidationCycles() {
+<span class="fc" id="L267">        return validationCycles;</span>
+    }
+
+    public void setValidationCycles(double validationCycles) {
+<span class="fc" id="L271">        this.validationCycles = validationCycles;</span>
+<span class="fc" id="L272">    }</span>
+
+    public String getLastBlockEvent() {
+<span class="fc" id="L275">        return lastBlockEvent;</span>
+    }
+
+    public void setLastBlockEvent(String lastBlockEvent) {
+<span class="fc" id="L279">        this.lastBlockEvent = lastBlockEvent;</span>
+<span class="fc" id="L280">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

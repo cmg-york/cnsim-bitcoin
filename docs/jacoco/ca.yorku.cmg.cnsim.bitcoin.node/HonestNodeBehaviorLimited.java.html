@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HonestNodeBehaviorLimited.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CNSim-based Implementation of Nakamoto Consensus</a> &gt; <a href="index.source.html" class="el_package">ca.yorku.cmg.cnsim.bitcoin.node</a> &gt; <span class="el_source">HonestNodeBehaviorLimited.java</span></div><h1>HonestNodeBehaviorLimited.java</h1><pre class="source lang-java linenums">package ca.yorku.cmg.cnsim.bitcoin.node;
+
+import ca.yorku.cmg.cnsim.bitcoin.structure.Block;
+import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
+
+/**
+ * A testing-only variant of {@linkplain HonestNodeBehavior} that loosens two
+ * validation checks so unit tests can drive predictable flows through the pool
+ * and mining logic without the full blockchain-consistency machinery engaging.
+ * &lt;p&gt;
+ * Two behaviors are weakened relative to the standard honest strategy:
+ * &lt;ul&gt;
+ *   &lt;li&gt;The &quot;is this transaction already in the local structure?&quot; guard is
+ *       removed, letting a test replay the same transaction through the pool
+ *       without the blockchain silently swallowing it.&lt;/li&gt;
+ *   &lt;li&gt;New-block reception is reduced to a bare structure insertion — no
+ *       pool extraction, no mining-pool reconstruction, no reconsideration of
+ *       mining. Test state therefore remains deterministic across block
+ *       arrivals.&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;p&gt;
+ * Not intended for production simulations.
+ * {@linkplain HiddenChainAttackBehavior} also uses this class as its
+ * {@code altHonestBehavior} so that public-chain blocks received during an
+ * attack do not clear the attacker's pool.
+ *
+ * @author Sotirios Liaskos for the Conceptual Modeling Group @ York University
+ * @see HonestNodeBehavior
+ * @see HiddenChainAttackBehavior
+ */
+public class HonestNodeBehaviorLimited extends HonestNodeBehavior {
+
+	/**
+	 * Constructs a limited honest behavior bound to the given node.
+	 *
+	 * @param node the Bitcoin node this behavior is attached to
+	 */
+	public HonestNodeBehaviorLimited(BitcoinNode node) {
+<span class="fc" id="L39">		super(node);</span>
+<span class="fc" id="L40">	}</span>
+
+	/**
+	 * Always returns {@code false}, skipping the &quot;already in blockchain&quot;
+	 * containment check that the base class performs. Lets tests feed the same
+	 * transaction through the pool repeatedly without it being rejected as a
+	 * duplicate against chain state.
+	 *
+	 * @param t the transaction to check (ignored)
+	 * @return always {@code false}
+	 */
+	@Override
+    protected boolean transactionContainedInStructure (Transaction t) {
+<span class="fc" id="L53">    	return(false);</span>
+    }
+
+
+	/**
+	 * Minimal new-block integration: adds the block to the node's structure
+	 * and stops. Unlike the base class, this override does &lt;i&gt;not&lt;/i&gt; extract
+	 * the block's transactions from the pool, does not reconstruct the mining
+	 * pool, and does not reconsider whether the node should be mining. Keeps
+	 * pool contents deterministic across block arrivals in tests and keeps the
+	 * attacker's pool untouched when used as the {@code altHonestBehavior} of
+	 * {@linkplain HiddenChainAttackBehavior}.
+	 *
+	 * @param b the received block
+	 */
+	@Override
+    protected void handleNewBlockReception(Block b) {
+        // Add block to the blockchain
+<span class="fc" id="L71">        node.getStructure().addToStructure(b);</span>
+<span class="fc" id="L72">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

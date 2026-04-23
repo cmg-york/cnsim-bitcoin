@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AttackerSuccessProbabilityAnalyzer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CNSim-based Implementation of Nakamoto Consensus</a> &gt; <a href="index.source.html" class="el_package">ca.yorku.cmg.cnsim.bitcoin.utils</a> &gt; <span class="el_source">AttackerSuccessProbabilityAnalyzer.java</span></div><h1>AttackerSuccessProbabilityAnalyzer.java</h1><pre class="source lang-java linenums">package ca.yorku.cmg.cnsim.bitcoin.utils;
+
+import ca.yorku.cmg.cnsim.engine.Debug;
+
+/**
+ * Analyzes and calculates attacker success probability based on the Bitcoin whitepaper model.
+ * &lt;p&gt;
+ * This class implements the mathematical model from Section 11 of the Bitcoin whitepaper
+ * (Satoshi Nakamoto, 2008) to calculate the probability that an attacker can successfully
+ * execute a double-spend attack given:
+ * &lt;ul&gt;
+ *   &lt;li&gt;q: The proportion of network hashpower controlled by the attacker&lt;/li&gt;
+ *   &lt;li&gt;z: The number of confirmation blocks the recipient waits for&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;/p&gt;
+ * &lt;p&gt;
+ * The model assumes the attacker starts mining a parallel chain immediately after the
+ * transaction is broadcast, attempting to create a longer chain to replace the honest chain
+ * and reverse the transaction.
+ * &lt;/p&gt;
+ *
+ * @author Amirreza Radjou for the Conceptual Modeling Group @ York University
+ * @see &lt;a href=&quot;https://bitcoin.org/bitcoin.pdf&quot;&gt;Bitcoin: A Peer-to-Peer Electronic Cash System&lt;/a&gt;
+ */
+<span class="nc" id="L25">public class AttackerSuccessProbabilityAnalyzer {</span>
+
+    /**
+     * Calculates the probability that an attacker can catch up and overtake the honest chain.
+     * &lt;p&gt;
+     * Based on the formula from the Bitcoin whitepaper:
+     * &lt;pre&gt;
+     * P = sum(k=0 to z) [ (lambda^k * e^-lambda) / k! * (1 - (q/p)^(z-k)) ]
+     * where lambda = z * (q/p)
+     * &lt;/pre&gt;
+     * &lt;/p&gt;
+     *
+     * @param q the proportion of network hashpower controlled by the attacker (0 &lt; q &lt; 1)
+     * @param z the number of confirmation blocks
+     * @return the probability of attacker success (0 to 1)
+     * @throws IllegalArgumentException if q is not in range (0, 1) or z is negative
+     */
+    public static double calculateAttackerSuccessProbability(double q, int z) {
+        // Validate inputs
+<span class="fc bfc" id="L44" title="All 4 branches covered.">        if (q &lt;= 0.0 || q &gt;= 1.0) {</span>
+<span class="fc" id="L45">            throw new IllegalArgumentException(&quot;Attacker hashpower proportion q must be in range (0, 1), got: &quot; + q);</span>
+        }
+<span class="fc bfc" id="L47" title="All 2 branches covered.">        if (z &lt; 0) {</span>
+<span class="fc" id="L48">            throw new IllegalArgumentException(&quot;Number of confirmations z must be non-negative, got: &quot; + z);</span>
+        }
+
+        // Special case: if attacker has majority hashpower, attack always succeeds
+<span class="fc bfc" id="L52" title="All 2 branches covered.">        if (q &gt;= 0.5) {</span>
+<span class="fc" id="L53">            return 1.0;</span>
+        }
+
+        // If no confirmations required, attacker always succeeds initially
+<span class="fc bfc" id="L57" title="All 2 branches covered.">        if (z == 0) {</span>
+<span class="fc" id="L58">            return 1.0;</span>
+        }
+
+<span class="fc" id="L61">        double p = 1.0 - q;</span>
+<span class="fc" id="L62">        double lambda = z * (q / p);</span>
+<span class="fc" id="L63">        double sum = 1.0;</span>
+
+        // Calculate the summation term
+<span class="fc bfc" id="L66" title="All 2 branches covered.">        for (int k = 0; k &lt;= z; k++) {</span>
+            // Calculate Poisson probability: (lambda^k * e^-lambda) / k!
+<span class="fc" id="L68">            double poisson = Math.exp(-lambda);</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">            for (int i = 1; i &lt;= k; i++) {</span>
+<span class="fc" id="L70">                poisson *= lambda / i;</span>
+            }
+
+            // Calculate catch-up probability term
+            double catchUpProb;
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">            if (k &lt;= z) {</span>
+<span class="fc" id="L76">                catchUpProb = 1.0 - Math.pow(q / p, z - k);</span>
+            } else {
+<span class="nc" id="L78">                catchUpProb = 1.0;</span>
+            }
+
+<span class="fc" id="L81">            sum -= poisson * catchUpProb;</span>
+        }
+
+<span class="fc" id="L84">        return sum;</span>
+    }
+
+    /**
+     * Calculates the minimum number of confirmations needed to achieve a target security level.
+     *
+     * @param q the proportion of network hashpower controlled by the attacker
+     * @param targetProbability the maximum acceptable probability of attack success (e.g., 0.001 for 0.1%)
+     * @return the minimum number of confirmations needed
+     * @throws IllegalArgumentException if q is not in range (0, 1) or targetProbability is not in range (0, 1)
+     */
+    public static int calculateRequiredConfirmations(double q, double targetProbability) {
+<span class="pc bpc" id="L96" title="1 of 4 branches missed.">        if (q &lt;= 0.0 || q &gt;= 1.0) {</span>
+<span class="fc" id="L97">            throw new IllegalArgumentException(&quot;Attacker hashpower proportion q must be in range (0, 1)&quot;);</span>
+        }
+<span class="pc bpc" id="L99" title="1 of 4 branches missed.">        if (targetProbability &lt;= 0.0 || targetProbability &gt;= 1.0) {</span>
+<span class="fc" id="L100">            throw new IllegalArgumentException(&quot;Target probability must be in range (0, 1)&quot;);</span>
+        }
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">        if (q &gt;= 0.5) {</span>
+<span class="nc" id="L103">            return Integer.MAX_VALUE; // Cannot achieve security with majority attacker</span>
+        }
+
+        // Binary search for minimum z
+<span class="fc" id="L107">        int z = 0;</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        while (calculateAttackerSuccessProbability(q, z) &gt; targetProbability) {</span>
+<span class="fc" id="L109">            z++;</span>
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">            if (z &gt; 1000) { // Safety limit</span>
+<span class="nc" id="L111">                break;</span>
+            }
+        }
+
+<span class="fc" id="L115">        return z;</span>
+    }
+
+    /**
+     * Generates a detailed report of attacker success probabilities for various
+     * hashpower ratios and confirmation counts, matching the tables from the whitepaper.
+     *
+     * @return a formatted string containing the analysis report
+     */
+    public static String generateWhitepaperComparisonReport() {
+<span class="fc" id="L125">        StringBuilder report = new StringBuilder();</span>
+<span class="fc" id="L126">        report.append(&quot;=&quot;.repeat(80)).append(&quot;\n&quot;);</span>
+<span class="fc" id="L127">        report.append(&quot;Bitcoin Whitepaper Attack Success Probability Analysis\n&quot;);</span>
+<span class="fc" id="L128">        report.append(&quot;Based on: Bitcoin: A Peer-to-Peer Electronic Cash System (Satoshi Nakamoto, 2008)\n&quot;);</span>
+<span class="fc" id="L129">        report.append(&quot;=&quot;.repeat(80)).append(&quot;\n\n&quot;);</span>
+
+        // Table 1: q=0.1 (10% attacker hashpower)
+<span class="fc" id="L132">        report.append(&quot;Attacker Hashpower: q = 0.1 (10%)\n&quot;);</span>
+<span class="fc" id="L133">        report.append(&quot;-&quot;.repeat(40)).append(&quot;\n&quot;);</span>
+<span class="fc" id="L134">        report.append(String.format(&quot;%-15s %s\n&quot;, &quot;Confirmations&quot;, &quot;Success Probability&quot;));</span>
+<span class="fc" id="L135">        report.append(&quot;-&quot;.repeat(40)).append(&quot;\n&quot;);</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">        for (int z = 0; z &lt;= 10; z++) {</span>
+<span class="fc" id="L137">            double prob = calculateAttackerSuccessProbability(0.1, z);</span>
+<span class="fc" id="L138">            report.append(String.format(&quot;z = %-10d P = %.7f\n&quot;, z, prob));</span>
+        }
+<span class="fc" id="L140">        report.append(&quot;\n&quot;);</span>
+
+        // Table 2: q=0.3 (30% attacker hashpower)
+<span class="fc" id="L143">        report.append(&quot;Attacker Hashpower: q = 0.3 (30%)\n&quot;);</span>
+<span class="fc" id="L144">        report.append(&quot;-&quot;.repeat(40)).append(&quot;\n&quot;);</span>
+<span class="fc" id="L145">        report.append(String.format(&quot;%-15s %s\n&quot;, &quot;Confirmations&quot;, &quot;Success Probability&quot;));</span>
+<span class="fc" id="L146">        report.append(&quot;-&quot;.repeat(40)).append(&quot;\n&quot;);</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">        for (int z = 0; z &lt;= 50; z += 5) {</span>
+<span class="fc" id="L148">            double prob = calculateAttackerSuccessProbability(0.3, z);</span>
+<span class="fc" id="L149">            report.append(String.format(&quot;z = %-10d P = %.7f\n&quot;, z, prob));</span>
+        }
+<span class="fc" id="L151">        report.append(&quot;\n&quot;);</span>
+
+        // Table 3: Required confirmations for P &lt; 0.1%
+<span class="fc" id="L154">        report.append(&quot;Required Confirmations for P &lt; 0.001 (0.1% attack success)\n&quot;);</span>
+<span class="fc" id="L155">        report.append(&quot;-&quot;.repeat(40)).append(&quot;\n&quot;);</span>
+<span class="fc" id="L156">        report.append(String.format(&quot;%-15s %s\n&quot;, &quot;Attacker Power&quot;, &quot;Min Confirmations&quot;));</span>
+<span class="fc" id="L157">        report.append(&quot;-&quot;.repeat(40)).append(&quot;\n&quot;);</span>
+<span class="fc" id="L158">        double[] qValues = {0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45};</span>
+<span class="fc bfc" id="L159" title="All 2 branches covered.">        for (double q : qValues) {</span>
+<span class="fc" id="L160">            int z = calculateRequiredConfirmations(q, 0.001);</span>
+<span class="fc" id="L161">            report.append(String.format(&quot;q = %.2f        z = %d\n&quot;, q, z));</span>
+        }
+<span class="fc" id="L163">        report.append(&quot;\n&quot;);</span>
+
+<span class="fc" id="L165">        return report.toString();</span>
+    }
+
+    /**
+     * Compares theoretical probabilities with simulation results.
+     * &lt;p&gt;
+     * This method should be called after simulation completion with the actual
+     * attack success metrics from the simulation.
+     * &lt;/p&gt;
+     *
+     * @param q the actual proportion of network hashpower controlled by the attacker
+     * @param z the number of confirmations used in the simulation
+     * @param simulationSuccessRate the observed success rate from the simulation (successful attacks / total attempts)
+     * @param totalAttempts the total number of attack attempts in the simulation
+     * @return a formatted comparison report
+     */
+    public static String compareWithSimulation(double q, int z, double simulationSuccessRate, int totalAttempts) {
+<span class="fc" id="L182">        double theoreticalProbability = calculateAttackerSuccessProbability(q, z);</span>
+<span class="fc" id="L183">        double difference = Math.abs(theoreticalProbability - simulationSuccessRate);</span>
+<span class="fc" id="L184">        double percentDifference = (difference / theoreticalProbability) * 100.0;</span>
+
+<span class="fc" id="L186">        StringBuilder report = new StringBuilder();</span>
+<span class="fc" id="L187">        report.append(&quot;=&quot;.repeat(80)).append(&quot;\n&quot;);</span>
+<span class="fc" id="L188">        report.append(&quot;Theoretical vs. Simulation Comparison\n&quot;);</span>
+<span class="fc" id="L189">        report.append(&quot;=&quot;.repeat(80)).append(&quot;\n&quot;);</span>
+<span class="fc" id="L190">        report.append(String.format(&quot;Attacker Hashpower (q):           %.2f (%.1f%%)\n&quot;, q, q * 100));</span>
+<span class="fc" id="L191">        report.append(String.format(&quot;Honest Hashpower (p):             %.2f (%.1f%%)\n&quot;, 1.0 - q, (1.0 - q) * 100));</span>
+<span class="fc" id="L192">        report.append(String.format(&quot;Confirmations (z):                %d\n&quot;, z));</span>
+<span class="fc" id="L193">        report.append(String.format(&quot;Total Attack Attempts:            %d\n&quot;, totalAttempts));</span>
+<span class="fc" id="L194">        report.append(&quot;-&quot;.repeat(80)).append(&quot;\n&quot;);</span>
+<span class="fc" id="L195">        report.append(String.format(&quot;Theoretical Success Probability:  %.7f (%.4f%%)\n&quot;,</span>
+<span class="fc" id="L196">            theoreticalProbability, theoreticalProbability * 100));</span>
+<span class="fc" id="L197">        report.append(String.format(&quot;Simulation Success Rate:          %.7f (%.4f%%)\n&quot;,</span>
+<span class="fc" id="L198">            simulationSuccessRate, simulationSuccessRate * 100));</span>
+<span class="fc" id="L199">        report.append(String.format(&quot;Absolute Difference:              %.7f\n&quot;, difference));</span>
+<span class="fc" id="L200">        report.append(String.format(&quot;Relative Difference:              %.2f%%\n&quot;, percentDifference));</span>
+<span class="fc" id="L201">        report.append(&quot;=&quot;.repeat(80)).append(&quot;\n&quot;);</span>
+
+        // Analysis
+<span class="pc bpc" id="L204" title="1 of 2 branches missed.">        if (percentDifference &lt; 5.0) {</span>
+<span class="fc" id="L205">            report.append(&quot;✓ Simulation results closely match theoretical predictions (&lt; 5% difference)\n&quot;);</span>
+<span class="nc bnc" id="L206" title="All 2 branches missed.">        } else if (percentDifference &lt; 15.0) {</span>
+<span class="nc" id="L207">            report.append(&quot;⚠ Moderate difference between simulation and theory (5-15% difference)\n&quot;);</span>
+<span class="nc" id="L208">            report.append(&quot;  This may be due to network delays, orphan blocks, or statistical variance.\n&quot;);</span>
+        } else {
+<span class="nc" id="L210">            report.append(&quot;✗ Significant difference between simulation and theory (&gt; 15% difference)\n&quot;);</span>
+<span class="nc" id="L211">            report.append(&quot;  Consider investigating:\n&quot;);</span>
+<span class="nc" id="L212">            report.append(&quot;  - Network propagation delays\n&quot;);</span>
+<span class="nc" id="L213">            report.append(&quot;  - Block generation variance\n&quot;);</span>
+<span class="nc" id="L214">            report.append(&quot;  - Attack strategy implementation\n&quot;);</span>
+<span class="nc" id="L215">            report.append(&quot;  - Sample size (need more attack attempts for statistical significance)\n&quot;);</span>
+        }
+
+<span class="fc" id="L218">        return report.toString();</span>
+    }
+
+    /**
+     * Prints a comprehensive analysis including both theoretical predictions
+     * and guidelines for simulation validation.
+     */
+    public static void printComprehensiveAnalysis() {
+<span class="nc" id="L226">        Debug.p(generateWhitepaperComparisonReport());</span>
+
+<span class="nc" id="L228">        Debug.p(&quot;\nGuidelines for Simulation Validation:&quot;);</span>
+<span class="nc" id="L229">        Debug.p(&quot;=&quot;.repeat(80));</span>
+<span class="nc" id="L230">        Debug.p(&quot;1. Run simulations with various q values (e.g., 0.1, 0.2, 0.3, 0.4)&quot;);</span>
+<span class="nc" id="L231">        Debug.p(&quot;2. For each q, test multiple confirmation counts (z)&quot;);</span>
+<span class="nc" id="L232">        Debug.p(&quot;3. Record attack success rate: (successful attacks) / (total attempts)&quot;);</span>
+<span class="nc" id="L233">        Debug.p(&quot;4. Use compareWithSimulation() to validate against theoretical model&quot;);</span>
+<span class="nc" id="L234">        Debug.p(&quot;5. Ensure sufficient sample size (at least 100 attack attempts per configuration)&quot;);</span>
+<span class="nc" id="L235">        Debug.p(&quot;6. Account for network effects not captured in the theoretical model:&quot;);</span>
+<span class="nc" id="L236">        Debug.p(&quot;   - Block propagation delays&quot;);</span>
+<span class="nc" id="L237">        Debug.p(&quot;   - Network partitions&quot;);</span>
+<span class="nc" id="L238">        Debug.p(&quot;   - Mining pool behavior&quot;);</span>
+<span class="nc" id="L239">        Debug.p(&quot;   - Selfish mining strategies&quot;);</span>
+<span class="nc" id="L240">        Debug.p(&quot;=&quot;.repeat(80));</span>
+<span class="nc" id="L241">    }</span>
+
+    /**
+     * Main method for standalone testing and report generation.
+     */
+    public static void main(String[] args) {
+<span class="nc" id="L247">        printComprehensiveAnalysis();</span>
+
+        // Example simulation comparison
+<span class="nc" id="L250">        Debug.p(&quot;\n\nExample Simulation Comparison:&quot;);</span>
+<span class="nc" id="L251">        Debug.p(compareWithSimulation(0.3, 10, 0.045, 1000));</span>
+<span class="nc" id="L252">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

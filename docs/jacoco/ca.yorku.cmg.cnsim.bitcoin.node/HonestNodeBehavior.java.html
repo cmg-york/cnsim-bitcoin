@@ -1,0 +1,337 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HonestNodeBehavior.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CNSim-based Implementation of Nakamoto Consensus</a> &gt; <a href="index.source.html" class="el_package">ca.yorku.cmg.cnsim.bitcoin.node</a> &gt; <span class="el_source">HonestNodeBehavior.java</span></div><h1>HonestNodeBehavior.java</h1><pre class="source lang-java linenums">package ca.yorku.cmg.cnsim.bitcoin.node;
+
+import ca.yorku.cmg.cnsim.bitcoin.reporter.BitcoinReporter;
+import ca.yorku.cmg.cnsim.bitcoin.structure.Block;
+import ca.yorku.cmg.cnsim.engine.Simulation;
+import ca.yorku.cmg.cnsim.engine.transaction.ITxContainer;
+import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
+
+
+/**
+ * Implements the canonical (&quot;honest&quot;) node behavior in the simulated Bitcoin
+ * network. An {@code HonestNodeBehavior} reacts to incoming transactions and
+ * blocks in a manner consistent with the Bitcoin consensus protocol—verifying,
+ * propagating, and mining without deviation or manipulation.
+ * &lt;p&gt;
+ * This class extends {@linkplain DefaultNodeBehavior}, inheriting core
+ * Proof-of-Work and mining logic, and specializes it for an honest mining
+ * strategy. The node:
+ * &lt;/p&gt;
+ * &lt;ul&gt;
+ *   &lt;li&gt;Receives transactions from clients and other nodes.&lt;/li&gt;
+ *   &lt;li&gt;Propagates valid transactions and blocks through the network.&lt;/li&gt;
+ *   &lt;li&gt;Validates mined blocks and integrates them into its local blockchain.&lt;/li&gt;
+ *   &lt;li&gt;Stops and restarts mining as required by consensus conditions.&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;p&gt;
+ * All simulation-time and reporting operations are integrated with
+ * {@linkplain BitcoinReporter} and {@linkplain Simulation} to allow detailed
+ * tracking of network dynamics.
+ * &lt;/p&gt;
+ *
+ * @author Sotirios Liaskos for the Conceptual Modeling Group @ York University
+ * @see BitcoinNode
+ * @see DefaultNodeBehavior
+ * @see NodeBehaviorStrategy
+ * @see BitcoinReporter
+ */
+public class HonestNodeBehavior extends DefaultNodeBehavior {
+
+
+    // ================================
+    // CONSTRUCTORS
+    // ================================
+
+    /**
+     * Constructs an honest node behavior strategy and binds it to a specific
+     * {@linkplain BitcoinNode} instance.
+     *
+     * @param node the node to which this behavior strategy is assigned
+     */
+<span class="fc" id="L51">    public HonestNodeBehavior(BitcoinNode node) {</span>
+<span class="fc" id="L52">        this.node = node;</span>
+<span class="fc" id="L53">    }</span>
+
+
+    // ================================
+    // EVENT HANDLERS
+    // ================================
+
+    /**
+     * Handles transactions received directly from clients.
+     * &lt;p&gt;
+     * The transaction is accepted if it is conflict-free and all its dependencies
+     * are present. If accepted, it is added to the pool and broadcast to peers.
+     * Otherwise it is discarded and the rejection reason is logged.
+     * &lt;/p&gt;
+     *
+     * @param t    the received transaction
+     * @param time the current simulation time
+     */
+    @Override
+    public void event_NodeReceivesClientTransaction(Transaction t, long time) {
+<span class="fc" id="L73">        boolean conflictFree = conflictFree(t);</span>
+<span class="fc" id="L74">        boolean dependenciesPresent = dependenciesPresent(t);</span>
+
+<span class="pc bpc" id="L76" title="2 of 4 branches missed.">        if (conflictFree &amp;&amp; dependenciesPresent) {</span>
+            // Transaction can be added and broadcast
+<span class="fc" id="L78">            transactionReceipt(t, time);</span>
+<span class="fc" id="L79">            node.broadcastTransaction(t, time);</span>
+        } else {
+            // Dependencies and/or conflict constraints not satisfied - discard
+<span class="nc bnc" id="L82" title="All 2 branches missed.">            String msg = (dependenciesPresent ? &quot; &quot; : &quot; dependencies not satisfied &quot;) +</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">                         (conflictFree ? &quot; &quot; : &quot; conflicts present&quot;);</span>
+<span class="nc" id="L84">            BitcoinReporter.addEvent(</span>
+                    Simulation.currentSimulationID,
+                    -1,
+                    Simulation.currTime,
+<span class="nc" id="L88">                    System.currentTimeMillis() - Simulation.sysStartTime,</span>
+                    &quot;Discarding Tx due to: &quot; + msg,
+<span class="nc" id="L90">                    node.getID(),</span>
+<span class="nc" id="L91">                    t.getID(),</span>
+                    &quot;&quot;);
+        }
+<span class="fc" id="L94">    }</span>
+
+    /**
+     * Handles transactions propagated from other nodes.
+     * &lt;p&gt;
+     * The transaction is accepted if it is conflict-free, all its dependencies are
+     * present, and it is not already in the pool or blockchain structure. If
+     * accepted, it is added to the pool and mining is reconsidered. Otherwise it
+     * is discarded and the rejection reason is logged.
+     * &lt;/p&gt;
+     *
+     * @param t    the propagated transaction
+     * @param time the current simulation time
+     */
+    @Override
+    public void event_NodeReceivesPropagatedTransaction(Transaction t, long time) {
+<span class="fc" id="L110">        boolean conflictFree = conflictFree(t);</span>
+<span class="fc" id="L111">        boolean dependenciesPresent = dependenciesPresent(t);</span>
+<span class="fc" id="L112">        boolean containedInPool = this.transactionContainedInPool(t); //  node.getPool().contains(t);</span>
+<span class="fc" id="L113">        boolean containedInStructure = this.transactionContainedInStructure(t);   //node.getStructure().contains(t);</span>
+
+<span class="pc bpc" id="L115" title="2 of 4 branches missed.">        if (conflictFree &amp;&amp; dependenciesPresent) {</span>
+<span class="fc bfc" id="L116" title="All 4 branches covered.">            if (!containedInPool &amp;&amp; !containedInStructure) {</span>
+                // Transaction can be received
+<span class="fc" id="L118">                transactionReceipt(t, time);</span>
+            } else {
+                // Transaction is already in the pool or blockchain structure
+<span class="fc bfc" id="L121" title="All 4 branches covered.">                String msg = (containedInPool ? &quot; pool, &quot; : &quot;&quot;) + (containedInStructure ? &quot; structure.&quot; : &quot;&quot;);</span>
+<span class="fc" id="L122">                BitcoinReporter.addEvent(</span>
+                        Simulation.currentSimulationID,
+                        -1,
+                        Simulation.currTime,
+<span class="fc" id="L126">                        System.currentTimeMillis() - Simulation.sysStartTime,</span>
+                        &quot;Discarding Tx due to: tx contained in system&quot; + msg,
+<span class="fc" id="L128">                        node.getID(),</span>
+<span class="fc" id="L129">                        t.getID(),</span>
+                        &quot;&quot;);
+<span class="fc" id="L131">            }</span>
+        } else {
+            // Dependencies and/or conflict constraints are not satisfied
+<span class="nc bnc" id="L134" title="All 2 branches missed.">            String msg = (dependenciesPresent ? &quot; &quot; : &quot; dependencies not satisfied &quot;) +</span>
+<span class="nc bnc" id="L135" title="All 2 branches missed.">                         (conflictFree ? &quot; &quot; : &quot; conflicts present&quot;);</span>
+<span class="nc" id="L136">            BitcoinReporter.addEvent(</span>
+                    Simulation.currentSimulationID,
+                    -1,
+                    Simulation.currTime,
+<span class="nc" id="L140">                    System.currentTimeMillis() - Simulation.sysStartTime,</span>
+                    &quot;Discarding Tx due to: &quot; + msg,
+<span class="nc" id="L142">                    node.getID(),</span>
+<span class="nc" id="L143">                    t.getID(),</span>
+                    &quot;&quot;);
+        }
+<span class="fc" id="L146">    }</span>
+
+    /**
+     * Handles reception of a propagated block from another node.
+     * &lt;p&gt;
+     * Logs the reception event, constructs a conflict block to check for
+     * structural conflicts, and validates the block against the local blockchain.
+     * A block is accepted if:
+     * &lt;ul&gt;
+     *   &lt;li&gt;None of its transactions are already in the structure on the chain
+     *       where it would be placed.&lt;/li&gt;
+     *   &lt;li&gt;None of its transactions conflict with transactions already in the
+     *       structure.&lt;/li&gt;
+     *   &lt;li&gt;All of its transaction dependencies are satisfied by the structure.&lt;/li&gt;
+     * &lt;/ul&gt;
+     * Accepted blocks are integrated via {@link #handleNewBlockReception(Block)}.
+     * Rejected blocks are logged as errors.
+     * &lt;/p&gt;
+     *
+     * @param t the propagated container (expected to be a {@linkplain Block})
+     */
+    @Override
+    public void event_NodeReceivesPropagatedContainer(ITxContainer t) {
+<span class="fc" id="L169">        Block b = (Block) t;</span>
+
+        //BAKALIS
+    	/* if ((b.getID() == 1717) &amp;&amp; node.getID() == 30) {
+            BitcoinReporter.addErrorEntry(Simulation.currTime + &quot;: node 30 reveives &quot; + b.getCurrentNodeID() + b.printIDs(&quot;;&quot;) + &quot;pointing at &quot; + (b.getParent() == null ? &quot;null&quot;: b.getParent().getID()));
+        } */
+        
+        // The block is a copy of the block object validated by the originating node
+<span class="fc" id="L177">        b.setCurrentNodeID(node.getID());</span>
+<span class="fc" id="L178">        b.setLastBlockEvent(&quot;Node Receives Propagated Block&quot;);</span>
+<span class="fc" id="L179">        b.setValidationCycles(-1.0);</span>
+<span class="fc" id="L180">        b.setValidationDifficulty(-1.0);</span>
+
+
+        
+        
+<span class="fc" id="L185">        BitcoinReporter.reportBlockEvent(</span>
+                Simulation.currentSimulationID,
+                Simulation.currTime,
+<span class="fc" id="L188">                System.currentTimeMillis() - Simulation.sysStartTime,</span>
+<span class="fc" id="L189">                b.getCurrentNodeID(),</span>
+<span class="fc" id="L190">                b.getID(),</span>
+<span class="fc bfc" id="L191" title="All 2 branches covered.">                ((b.getParent() == null) ? -1 : b.getParent().getID()), b.getHeight(),</span>
+<span class="fc" id="L192">                b.printIDs(&quot;;&quot;),</span>
+<span class="fc" id="L193">                b.getLastBlockEvent(),</span>
+<span class="fc" id="L194">                b.getValidationDifficulty(),</span>
+<span class="fc" id="L195">                b.getValidationCycles());</span>
+
+        // Create an artificial block containing all conflict-group transactions of b
+<span class="fc" id="L198">        Block cB = getConflictBlock(b);</span>
+
+        // VALIDATE BLOCK
+<span class="fc bfc" id="L201" title="All 2 branches covered.">        if (!node.getStructure().contains(b) &amp;&amp;          // no tx of b overlaps the chain it would join</span>
+<span class="pc bpc" id="L202" title="1 of 2 branches missed.">            !node.getStructure().contains(cB) &amp;&amp;          // no conflicting tx is already in the structure</span>
+<span class="pc bpc" id="L203" title="1 of 2 branches missed.">            node.getStructure().satisfiesDependencies(b, node.getSim().getDependencyRegistry())) {</span>
+            // Block is valid - accept it
+        	
+        	/* if ((b.getID() == 1717) &amp;&amp; node.getID() == 30) {
+            	BitcoinReporter.addErrorEntry(&quot;1717 goes for reception&quot;);
+            } */
+            
+<span class="fc" id="L210">            handleNewBlockReception(b);</span>
+        } else {
+            // Block is invalid - discard and log the reason
+<span class="fc" id="L213">            String msg = &quot;&quot;;</span>
+<span class="pc bpc" id="L214" title="1 of 2 branches missed.">            if (node.getStructure().contains(b)) {</span>
+<span class="fc" id="L215">                msg += &quot;overlap with structure, &quot;;</span>
+            }
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">            if (node.getStructure().contains(cB)) {</span>
+<span class="nc" id="L218">                msg += &quot;conflict with structure, &quot;;</span>
+            }
+<span class="pc bpc" id="L220" title="1 of 2 branches missed.">            if (!node.getStructure().satisfiesDependencies(b, node.getSim().getDependencyRegistry())) {</span>
+<span class="nc" id="L221">                msg += &quot;not satisfy dependencies, &quot;;</span>
+            }
+
+<span class="fc" id="L224">            BitcoinReporter.addErrorEntry(&quot;Node::event_NodeReceivesPropagatedContainer: (&quot; +</span>
+<span class="fc" id="L225">                    node.getSim().getSimID() + &quot;,&quot; + Simulation.currTime + &quot;) Node &quot; + this.node.getID() +</span>
+<span class="fc" id="L226">                    &quot; Block &quot; + b.getID() + &quot; containing &quot; + b.printIDs(&quot;,&quot;) +</span>
+                    &quot; received through propagation is found to &quot; + msg + &quot;.&quot;);
+<span class="fc" id="L228">            b.setLastBlockEvent(&quot;ERROR: propagated Block discarded&quot;);</span>
+<span class="fc" id="L229">            BitcoinReporter.reportBlockEvent(</span>
+                    Simulation.currentSimulationID,
+                    Simulation.currTime,
+<span class="fc" id="L232">                    System.currentTimeMillis() - Simulation.sysStartTime,</span>
+<span class="fc" id="L233">                    b.getCurrentNodeID(),</span>
+<span class="fc" id="L234">                    b.getID(),</span>
+<span class="pc bpc" id="L235" title="1 of 2 branches missed.">                    ((b.getParent() == null) ? -1 : b.getParent().getID()),</span>
+<span class="fc" id="L236">                    b.getHeight(),</span>
+<span class="fc" id="L237">                    b.printIDs(&quot;;&quot;),</span>
+<span class="fc" id="L238">                    b.getLastBlockEvent(),</span>
+<span class="fc" id="L239">                    b.getValidationDifficulty(),</span>
+<span class="fc" id="L240">                    b.getValidationCycles());</span>
+
+<span class="fc" id="L242">            BitcoinReporter.addEvent(</span>
+                    Simulation.currentSimulationID,
+                    -1,
+                    Simulation.currTime,
+<span class="fc" id="L246">                    System.currentTimeMillis() - Simulation.sysStartTime,</span>
+                    &quot;Discarding Propagated Container due to: &quot; + msg,
+<span class="fc" id="L248">                    node.getID(),</span>
+<span class="fc" id="L249">                    t.getID(),</span>
+                    &quot;&quot;);
+        }
+<span class="fc" id="L252">    }</span>
+
+    /**
+     * Handles completion of block validation by this node.
+     * &lt;p&gt;
+     * Records validation metadata, logs the event, runs a sanity check to detect
+     * unexpected overlaps with the existing structure, adds the block to the local
+     * blockchain, broadcasts a clone to peers, and triggers post-validation
+     * activities (mining pool update, mining reconsideration).
+     * &lt;/p&gt;
+     *
+     * @param t    the validated container (expected to be a {@linkplain Block})
+     * @param time the current simulation time
+     */
+    @Override
+    public void event_NodeCompletesValidation(ITxContainer t, long time) {
+<span class="fc" id="L268">        Block b = (Block) t;</span>
+
+        // Record validation metadata on the block
+<span class="fc" id="L271">        b.validateBlock(node.getMiningPool(),</span>
+                Simulation.currTime,
+<span class="fc" id="L273">                System.currentTimeMillis() - Simulation.sysStartTime,</span>
+<span class="fc" id="L274">                node.getID(),</span>
+                &quot;Node Completes Validation&quot;,
+<span class="fc" id="L276">                node.getOperatingDifficulty(),</span>
+<span class="fc" id="L277">                node.getProspectiveCycles());</span>
+
+        // Run default post-validation actions (cycle stats etc.)
+<span class="fc" id="L280">        node.completeValidation(node.getMiningPool(), time);</span>
+
+        // Report the validation event
+<span class="fc" id="L283">        BitcoinReporter.reportBlockEvent(</span>
+                Simulation.currentSimulationID,
+<span class="fc" id="L285">                b.getSimTime_validation(),</span>
+<span class="fc" id="L286">                b.getSysTime_validation(),</span>
+<span class="fc" id="L287">                b.getValidationNodeID(),</span>
+<span class="pc bpc" id="L288" title="1 of 2 branches missed.">                b.getID(), ((b.getParent() == null) ? -1 : b.getParent().getID()),</span>
+<span class="fc" id="L289">                b.getHeight(),</span>
+<span class="fc" id="L290">                b.printIDs(&quot;;&quot;),</span>
+                &quot;Node Completes Validation&quot;,
+<span class="fc" id="L292">                b.getValidationDifficulty(),</span>
+<span class="fc" id="L293">                b.getValidationCycles());</span>
+
+        // SANITY CHECK: verify the validated block does not overlap the structure
+<span class="fc" id="L296">        b.setParent(node.getStructure().getLongestTip());</span>
+<span class="pc bpc" id="L297" title="1 of 2 branches missed.">        if (node.getStructure().contains(b)) {</span>
+<span class="nc" id="L298">            String msg = &quot;Node::event_NodeCompletesValidation: Block &quot; + b.getID() +</span>
+<span class="nc" id="L299">                    &quot; containing &quot; + b.printIDs(&quot;,&quot;) +</span>
+<span class="nc" id="L300">                    &quot; just validated by node &quot; + node.getID() + </span>
+<span class="nc" id="L301">                    &quot; in simulation &quot; + node.getSim().getSimID() +</span>
+<span class="nc bnc" id="L302" title="All 2 branches missed.">                    &quot; pointing to &quot; + (b.getParent() == null ? 0: b.getParent().getID()) +</span>
+                    &quot; is found to overlap with structure: \n&quot; +
+<span class="nc" id="L304">                    String.join(&quot;\n&quot;, node.getStructure().printStructure()) +</span>
+<span class="nc" id="L305">                    &quot;\nOrphans are: \n:&quot; + String.join(&quot;\n&quot;, node.getStructure().printOrphans()) +</span>
+                    &quot;\n This should not happen as the node always updates its miningpool&quot; +
+                    &quot; to have no overlaps with structure.\n\n&quot;;
+<span class="nc" id="L308">            BitcoinReporter.addErrorEntry(msg);</span>
+<span class="nc" id="L309">            BitcoinReporter.reportBlockEvent(</span>
+                    Simulation.currentSimulationID,
+<span class="nc" id="L311">                    b.getSimTime_validation(),</span>
+<span class="nc" id="L312">                    b.getSysTime_validation() - Simulation.sysStartTime,</span>
+<span class="nc" id="L313">                    b.getValidationNodeID(),</span>
+<span class="nc bnc" id="L314" title="All 2 branches missed.">                    b.getID(), ((b.getParent() == null) ? -1 : b.getParent().getID()),</span>
+<span class="nc" id="L315">                    b.getHeight(),</span>
+<span class="nc" id="L316">                    b.printIDs(&quot;;&quot;),</span>
+                    &quot;Validating Inconsistent Block (WARNING) - See ERROR log.&quot;,
+<span class="nc" id="L318">                    b.getValidationDifficulty(),</span>
+<span class="nc" id="L319">                    b.getValidationCycles());</span>
+        }
+        // END SANITY CHECK
+
+        // Reset parent to null and let Structure find the correct parent during insertion
+<span class="fc" id="L324">        b.setParent(null);</span>
+<span class="fc" id="L325">        node.getStructure().addToStructure(b);</span>
+
+        // Propagate a clone of the block to the rest of the network
+        try {
+<span class="fc" id="L329">            node.broadcastContainer((ITxContainer) b.clone(), time);</span>
+<span class="nc" id="L330">        } catch (CloneNotSupportedException e) {</span>
+<span class="nc" id="L331">            e.printStackTrace();</span>
+<span class="fc" id="L332">        }</span>
+
+<span class="fc" id="L334">        processPostValidationActivities(time);</span>
+<span class="fc" id="L335">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

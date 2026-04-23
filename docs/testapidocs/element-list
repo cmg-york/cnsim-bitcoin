@@ -1,0 +1,6 @@
+ca.yorku.cmg.cnsim.bitcoin.analysis
+ca.yorku.cmg.cnsim.bitcoin.node
+ca.yorku.cmg.cnsim.bitcoin.node.stubs
+ca.yorku.cmg.cnsim.bitcoin.structure
+ca.yorku.cmg.cnsim.bitcoin.testutils
+ca.yorku.cmg.cnsim.bitcoin.utils

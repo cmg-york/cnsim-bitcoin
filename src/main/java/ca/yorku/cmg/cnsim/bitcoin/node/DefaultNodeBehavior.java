@@ -155,7 +155,7 @@ public abstract class DefaultNodeBehavior implements NodeBehaviorStrategy {
      * @throws IllegalStateException if the conflict entry for {@code t} is uninitialized
      */
     protected boolean conflictFree(Transaction t) {
-        long conflict = node.getSim().getConflictRegistry().getMatch((int) t.getID());
+        int conflict = node.getSim().getConflictRegistry().getMatch((int) t.getID());
 
         if (conflict == -2) throw new IllegalStateException(
                 "Conflict for transaction " + t.getID() + " uninitialized");
@@ -218,7 +218,7 @@ public abstract class DefaultNodeBehavior implements NodeBehaviorStrategy {
     protected Block getConflictBlock(Block b) {
         Block conflictBlock = new Block();
         for (Transaction r : b.getTransactions()) {
-            long conflict = node.getSim().getConflictRegistry().getMatch((int) r.getID());
+            int conflict = node.getSim().getConflictRegistry().getMatch((int) r.getID());
             if (conflict != -1) {
                 conflictBlock.addTransaction(new Transaction(conflict));
             }

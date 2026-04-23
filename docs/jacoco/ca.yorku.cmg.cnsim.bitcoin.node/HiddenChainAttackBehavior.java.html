@@ -1,0 +1,1508 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HiddenChainAttackBehavior.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CNSim-based Implementation of Nakamoto Consensus</a> &gt; <a href="index.source.html" class="el_package">ca.yorku.cmg.cnsim.bitcoin.node</a> &gt; <span class="el_source">HiddenChainAttackBehavior.java</span></div><h1>HiddenChainAttackBehavior.java</h1><pre class="source lang-java linenums">package ca.yorku.cmg.cnsim.bitcoin.node;
+
+import ca.yorku.cmg.cnsim.bitcoin.reporter.BitcoinReporter;
+import ca.yorku.cmg.cnsim.bitcoin.structure.Block;
+import ca.yorku.cmg.cnsim.engine.Debug;
+import ca.yorku.cmg.cnsim.engine.Simulation;
+import ca.yorku.cmg.cnsim.engine.event.Event_ContainerValidation;
+import ca.yorku.cmg.cnsim.engine.transaction.ITxContainer;
+import ca.yorku.cmg.cnsim.engine.transaction.Transaction;
+import java.util.ArrayList;
+import java.util.Objects;
+
+
+/**
+ * Implements a hidden chain attack strategy for Bitcoin network simulation.
+ * &lt;p&gt;
+ * A {@code HiddenChainAttackBehavior} wraps the honest node behavior and allows
+ * an attacker to secretly mine on a private chain while potentially appearing honest
+ * to the network. The attacker can then strategically release the hidden chain when
+ * advantageous (e.g., to double-spend transactions or reorganize the blockchain).
+ * &lt;/p&gt;
+ * &lt;p&gt;
+ * This class manages three distinct operational states:
+ * &lt;ul&gt;
+ *   &lt;li&gt;{@link State#IDLE}: Normal honest operation, no attack in progress.&lt;/li&gt;
+ *   &lt;li&gt;{@link State#MONITORING}: Honest operation while observing network for
+ *       attack opportunities.&lt;/li&gt;
+ *   &lt;li&gt;{@link State#ATTACKING}: Private chain mining in progress, blocks not
+ *       yet released to network.&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;/p&gt;
+ * &lt;p&gt;
+ * Attack initiation and chain release are controlled by configurable parameters:
+ * {@code attackPower} (mining capability in trials per time unit),
+ * {@code targetTransaction} (transaction ID to trigger attack onset),
+ * {@code startAdvantage} (height disadvantage threshold that triggers attack),
+ * and {@code releaseAdvantage} (height advantage threshold that triggers chain release).
+ * &lt;/p&gt;
+ *
+ * @author Sotirios Liaskos for the Conceptual Modeling Group @ York University
+ * @see HonestNodeBehavior
+ * @see BitcoinNode
+ * @see NodeBehaviorStrategy
+ */
+public class HiddenChainAttackBehavior extends DefaultNodeBehavior {
+
+
+    // ================================
+    // FIELDS
+    // ================================
+
+    /**
+     * The wrapped honest node behavior strategy.
+     * Delegates all honest operations while the attack is not in progress.
+     */
+    private HonestNodeBehavior honestBehavior;
+
+    /**
+     * An alternative specialization of honest behavior with useful tweaks
+     */
+    private HonestNodeBehavior altHonestBehavior;
+    
+    
+    /**
+     * The current operational state of the attack.
+     * Controls whether and how the node participates in hidden chain mining.
+     */
+    private State currentState;
+
+    /**
+     * Attacker's mining power (in trials per unit of time). See unit documentation.
+     * Value of -1 indicates uninitialized; must be set before attack initiation.
+     */
+<span class="fc" id="L74">    private float attackPower = -1;</span>
+
+    /**
+     * Node's normal (pre-attack) mining power (in trials per unit of time).
+     * Value of -1 indicates uninitialized. Stored when attack begins so the node
+     * can revert to honest hash power after the attack completes or is cancelled.
+     */
+<span class="fc" id="L81">    private float honestPower = -1;</span>
+
+    
+	/** 
+	 * The total power of the network excluding the power of the attacker in 
+	 * either attack or idle/monitoring mode
+	 */
+	private float networkHonestPower;
+    
+    
+    /**
+     * Target transaction ID for the attack (double-spend or orphan attempt).
+     * In MONITORING state, the node waits for a block containing this transaction;
+     * upon reception, the attack is triggered. Value of -1 indicates no target set.
+     */
+<span class="fc" id="L96">    private long targetTransaction = -1;</span>
+
+    /**
+     * Advantage threshold that triggers attack start.
+     * Typically zero or negative. For example, -2 means &quot;start when 2 blocks behind&quot;.
+     * The attack starts when {@code getAdvantage() &lt;= startAdvantage}.
+     * Must be set via {@link #setStartAdvantage(Integer)} before entering MONITORING state.
+     */
+    private Integer startAdvantage;
+
+    /**
+     * Advantage threshold that triggers hidden chain release.
+     * Typically zero or positive. Zero reproduces Nakamoto attack probabilities.
+     * The chain is released when {@code getAdvantage() &gt;= releaseAdvantage}.
+     * Must be set via {@link #setReleaseAdvantage(Integer)} before entering MONITORING state.
+     */
+    private Integer releaseAdvantage;
+
+
+    /**
+     * The number of confirmations that the target transaction has received, i.e. the number of blocks that
+     * are on top of the block containing the transaction, plus the block itself.
+     * Initially null. 
+     */
+    private Integer releaseConfirmations;
+    
+
+	/**
+     * When time reaches this point, MONITORING or ATTACKING must cease.
+     * -1 means there is no time out (disabled).
+     */
+<span class="fc" id="L127">    private long attackTimeOut = -1;</span>
+    
+    
+    /**
+     * Private blockchain maintained by the attacker during ATTACKING state.
+     * Contains blocks mined secretly that have not yet been released to the network.
+     * Cleared when the attack completes or is cancelled.
+     */
+    private ArrayList&lt;Block&gt; hiddenChain;
+
+    /**
+     * Reference to the tip (latest block) of the hidden chain.
+     * Null when no attack is in progress. Set to the parent of the target transaction's
+     * block when the attack starts, then updated as each new hidden block is added via
+     * {@link #nodeCompletesMaliciousValidation(ITxContainer, long)}.
+     * Used to calculate the attacker's current advantage.
+     */
+<span class="fc" id="L144">    private Block hiddenChainTip = null;</span>
+
+
+
+    // ================================
+    // CONSTRUCTORS
+    // ================================
+
+    /**
+     * Constructs a hidden chain attack behavior and binds it to a specific
+     * {@linkplain BitcoinNode} instance.
+     * &lt;p&gt;
+     * Initializes the behavior in IDLE state with a wrapped {@linkplain HonestNodeBehavior}
+     * and empty hidden chain. Attack parameters ({@code startAdvantage}, {@code releaseAdvantage},
+     * {@code attackPower}) must be configured via setters before entering MONITORING state.
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ requires node != null;
+     *   //@ requires beh != null;
+     *   //@ requires altBeh != null;
+     *   //@ ensures this.node == node;
+     *   //@ ensures currentState == State.IDLE;
+     *   //@ ensures hiddenChain != null &amp;&amp; hiddenChain.isEmpty();
+     *   //@ ensures honestBehavior != null;
+     * }&lt;/pre&gt;
+     *
+     * @param node the Bitcoin node to which this behavior is attached (must not be null)
+     * @param beh  the honest behavior to wrap and delegate to (must not be null)
+     * @param altBeh a limited version of honest behavior to wrap and delegate to (must not be null)
+     * @throws NullPointerException if {@code node} is null
+     */
+    public HiddenChainAttackBehavior(BitcoinNode node, 
+    		HonestNodeBehavior beh,
+<span class="fc" id="L179">    		HonestNodeBehavior altBeh) {</span>
+<span class="fc" id="L180">        Objects.requireNonNull(node, &quot;BitcoinNode cannot be null&quot;);</span>
+<span class="fc" id="L181">        this.node = node;</span>
+<span class="fc" id="L182">        this.honestBehavior = beh;</span>
+<span class="fc" id="L183">        this.altHonestBehavior = altBeh;</span>
+<span class="fc" id="L184">        this.currentState = State.IDLE;</span>
+<span class="fc" id="L185">        this.hiddenChain = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L186">    }</span>
+
+
+    // ================================
+    // EVENT HANDLERS
+    // ================================
+
+
+    /**
+     * Handles transactions received directly from clients.
+     * &lt;p&gt;
+     * Behavior depends on current attack state:
+     * &lt;ul&gt;
+     *   &lt;li&gt;&lt;b&gt;IDLE:&lt;/b&gt; Delegates to honest behavior; normal operation.&lt;/li&gt;
+     *   &lt;li&gt;&lt;b&gt;MONITORING:&lt;/b&gt; Accepts all transactions except the target transaction
+     *       (target must arrive in a block to trigger attack).&lt;/li&gt;
+     *   &lt;li&gt;&lt;b&gt;ATTACKING:&lt;/b&gt; Rejects the target transaction (should not arrive directly);
+     *       accepts others to maintain honest appearance.&lt;/li&gt;
+     * &lt;/ul&gt;
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ requires t != null;
+     *   //@ requires time &gt;= 0;
+     *   //@ requires currentState != null;
+     * }&lt;/pre&gt;
+     *
+     * @param t    the received transaction (must not be null)
+     * @param time the current simulation time (must be non-negative)
+     * @throws NullPointerException     if {@code t} is null
+     * @throws IllegalArgumentException if {@code time} is negative
+     * @throws IllegalStateException    if target transaction arrives during ATTACKING state
+     */
+    @Override
+    public void event_NodeReceivesClientTransaction(Transaction t, long time) {
+<span class="fc" id="L222">        Objects.requireNonNull(t, &quot;Transaction cannot be null&quot;);</span>
+<span class="pc bpc" id="L223" title="1 of 2 branches missed.">        if (time &lt; 0) throw new IllegalArgumentException(&quot;Time cannot be negative: &quot; + time);</span>
+
+        
+<span class="pc bpc" id="L226" title="3 of 4 branches missed.">        switch (currentState) {</span>
+        case IDLE:
+            // In IDLE, accept all transactions normally
+<span class="nc" id="L229">            honestBehavior.event_NodeReceivesClientTransaction(t, time);</span>
+<span class="nc" id="L230">            break;</span>
+
+        case MONITORING:
+<span class="nc bnc" id="L233" title="All 2 branches missed.">            if (t.getID() != targetTransaction) {</span>
+<span class="nc" id="L234">                honestBehavior.event_NodeReceivesClientTransaction(t, time);</span>
+            } else {
+                // NORMALLY: you should just sensor the target transaction 
+            	// HOWEVER: we receive it normally here for the purpose of compliance
+            	// with theoretical calculations
+<span class="nc" id="L239">            	honestBehavior.event_NodeReceivesClientTransaction(t, time);</span>
+<span class="nc bnc" id="L240" title="All 2 branches missed.">            	if (BitcoinReporter.reportsAttackEvents()) {</span>
+<span class="nc" id="L241">        	        BitcoinReporter.addEvent(</span>
+<span class="nc" id="L242">        	        		node.getSim().getSimID(),</span>
+        	        		-1,
+        	        		Simulation.currTime,
+        	        		-1,
+        	        		&quot;Attacker Receiving Target Transaction (Tx kept)&quot;,
+<span class="nc" id="L247">        	        		node.getID(),</span>
+        	        		-1,
+<span class="nc" id="L249">        	        		&quot;Power: &quot; + node.getHashPower() </span>
+        	        		);
+                }
+            }
+            
+            break;
+
+        case ATTACKING:
+        	// Accept non-target transactions that do not 
+        	// overlap your hidden chain to maintain honest appearance
+<span class="pc bpc" id="L259" title="2 of 4 branches missed.">        	if (!inHiddenChain(t) &amp;&amp; !(t.getID() == targetTransaction)) {</span>
+<span class="fc" id="L260">        		altHonestBehavior.event_NodeReceivesClientTransaction(t, time);</span>
+        	}
+        	
+        	//Actually..
+<span class="pc bpc" id="L264" title="1 of 2 branches missed.">        	if (t.getID() == targetTransaction) {</span>
+<span class="nc" id="L265">        		throw new IllegalStateException(&quot;Receiving target transaction while in attack state. How did I enter attack state if transaction hadn't arrived first?&quot;);</span>
+        	}
+        	
+            break;
+        }
+        
+<span class="pc bpc" id="L271" title="1 of 2 branches missed.">    	if (attackTimedOut(time)) {</span>
+<span class="nc" id="L272">    		handleTimeOut(time);</span>
+        } 
+<span class="fc" id="L274">    }</span>
+
+    /**
+     * Handles transactions propagated from other nodes in the network.
+     * &lt;p&gt;
+     * Behavior depends on current attack state:
+     * &lt;ul&gt;
+     *   &lt;li&gt;&lt;b&gt;IDLE:&lt;/b&gt; Delegates to honest behavior; normal propagation handling.&lt;/li&gt;
+     *   &lt;li&gt;&lt;b&gt;MONITORING:&lt;/b&gt; Ignores target transaction; forwards others normally.&lt;/li&gt;
+     *   &lt;li&gt;&lt;b&gt;ATTACKING:&lt;/b&gt; Maintains transaction pool on public chain while privately
+     *       mining hidden chain; accepts all propagated transactions.&lt;/li&gt;
+     * &lt;/ul&gt;
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ requires t != null;
+     *   //@ requires time &gt;= 0;
+     *   //@ requires currentState != null;
+     * }&lt;/pre&gt;
+     *
+     * @param t    the propagated transaction (must not be null)
+     * @param time the current simulation time (must be non-negative)
+     * @throws NullPointerException     if {@code t} is null
+     * @throws IllegalArgumentException if {@code time} is negative
+     */
+    @Override
+    public void event_NodeReceivesPropagatedTransaction(Transaction t, long time) {
+<span class="fc" id="L302">        Objects.requireNonNull(t, &quot;Transaction cannot be null&quot;);</span>
+<span class="pc bpc" id="L303" title="1 of 2 branches missed.">        if (time &lt; 0) throw new IllegalArgumentException(&quot;Time cannot be negative: &quot; + time);</span>
+        
+        /*
+        if (node.getID() == 30 &amp;&amp; (t.getID() == 71 || t.getID() == 72)) {
+        	BitcoinReporter.addErrorEntry(&quot;Receiving transaction &quot; + t.getID() + &quot; under state &quot; + getAttackState());
+        }*/
+        
+<span class="pc bpc" id="L310" title="1 of 4 branches missed.">        switch (currentState) {</span>
+        case IDLE:
+            // In IDLE, handle all propagated transactions normally
+<span class="fc" id="L313">            honestBehavior.event_NodeReceivesPropagatedTransaction(t, time);</span>
+<span class="fc" id="L314">            break;</span>
+
+        case MONITORING:
+            // In MONITORING, ignore the target transaction; process others
+<span class="fc bfc" id="L318" title="All 2 branches covered.">            if (t.getID() != targetTransaction) {</span>
+<span class="fc" id="L319">                honestBehavior.event_NodeReceivesPropagatedTransaction(t, time);</span>
+            }
+<span class="pc bpc" id="L321" title="1 of 2 branches missed.">        	if (attackTimedOut(time)) {</span>
+<span class="nc" id="L322">        		handleTimeOut(time);</span>
+            }
+            break;
+
+        case ATTACKING:
+            // In ATTACKING, maintain honest pool for public chain mining
+            /* if (t.getID() == targetTransaction) {
+                throw new IllegalStateException(
+                    &quot;Target transaction propagated during attack (should not occur): &quot; + t.getID());
+            }*/
+        	
+        	// Reject the transaction if it is in the hiddenchain
+        	// otherwise do what an honest node would do.
+<span class="fc bfc" id="L335" title="All 4 branches covered.">        	if (!inHiddenChain(t) &amp;&amp; !(t.getID() == targetTransaction)) {</span>
+<span class="fc" id="L336">        		altHonestBehavior.event_NodeReceivesPropagatedTransaction(t, time);</span>
+        	} 
+            break;
+        }
+        
+<span class="pc bpc" id="L341" title="1 of 2 branches missed.">    	if (attackTimedOut(time)) {</span>
+<span class="nc" id="L342">    		handleTimeOut(time);</span>
+        } 
+<span class="fc" id="L344">    }</span>
+
+    /**
+     * Handles reception of a propagated block from the network.
+     * &lt;p&gt;
+     * Behavior depends on current attack state:
+     * &lt;ul&gt;
+     *   &lt;li&gt;&lt;b&gt;IDLE:&lt;/b&gt; Delegates to honest behavior; normal block handling.&lt;/li&gt;
+     *   &lt;li&gt;&lt;b&gt;MONITORING:&lt;/b&gt; Delegates to honest behavior; if the block contains the
+     *       target transaction, sets the hidden chain tip to the block's parent and
+     *       considers initiating the attack via {@link #considerAttacking()}.&lt;/li&gt;
+     *   &lt;li&gt;&lt;b&gt;ATTACKING:&lt;/b&gt; Delegates to honest behavior to update the public chain;
+     *       advantage is re-evaluated in {@link #event_NodeCompletesValidation(ITxContainer, long)}.&lt;/li&gt;
+     * &lt;/ul&gt;
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ requires c != null;
+     *   //@ requires c instanceof Block;
+     *   //@ requires currentState != null;
+     * }&lt;/pre&gt;
+     *
+     * @param c the propagated block container (must not be null, must be a {@linkplain Block})
+     * @throws NullPointerException     if {@code c} is null
+     * @throws IllegalArgumentException if {@code c} is not a Block instance
+     */
+    @Override
+    public void event_NodeReceivesPropagatedContainer(ITxContainer c) {
+<span class="fc" id="L373">        Objects.requireNonNull(c, &quot;Container cannot be null&quot;);</span>
+<span class="pc bpc" id="L374" title="1 of 2 branches missed.">        if (!(c instanceof Block)) {</span>
+<span class="nc" id="L375">            throw new IllegalArgumentException(</span>
+<span class="nc" id="L376">                &quot;Expected Block instance, got: &quot; + c.getClass().getSimpleName());</span>
+        }
+
+<span class="pc bpc" id="L379" title="1 of 4 branches missed.">        switch (currentState) {</span>
+        case IDLE:
+            // In IDLE, accept blocks normally
+<span class="fc" id="L382">            honestBehavior.event_NodeReceivesPropagatedContainer(c);</span>
+<span class="fc" id="L383">            break;</span>
+
+        case MONITORING:
+            // In MONITORING, accept blocks and check for target transaction trigger
+<span class="fc" id="L387">            honestBehavior.event_NodeReceivesPropagatedContainer(c);</span>
+<span class="fc bfc" id="L388" title="All 2 branches covered.">            if (c.contains(targetTransaction)) {</span>
+<span class="pc bpc" id="L389" title="1 of 2 branches missed.">                if (hiddenChainTip != null) </span>
+<span class="nc" id="L390">                	throw new IllegalStateException(&quot;hiddenChainTip must be null in MONITORING state.&quot;);</span>
+<span class="pc bpc" id="L391" title="1 of 2 branches missed.">                if (!hiddenChain.isEmpty()) </span>
+<span class="nc" id="L392">                	throw new IllegalStateException(&quot;hiddenChain must be empty in MONITORING state.&quot;);</span>
+                
+                // The hidden chain starts from the parent of the block containing the target
+<span class="fc" id="L395">                hiddenChainTip = (Block) ((Block) c).getParent();</span>
+<span class="fc" id="L396">                considerAttacking();</span>
+            }
+            break;
+
+        case ATTACKING:
+            // In ATTACKING, update the public chain to track attacker's advantage
+        	// however use the limited honest behavior in which the pool is not cleared. 
+<span class="fc" id="L403">            altHonestBehavior.event_NodeReceivesPropagatedContainer(c);</span>
+<span class="fc" id="L404">           	evaluateAttackState(Simulation.currTime);</span>
+            break;
+        }
+<span class="fc" id="L407">    }</span>
+
+    /**
+     * Handles completion of block validation by this node.
+     * &lt;p&gt;
+     * Behavior depends on attack state:
+     * &lt;ul&gt;
+     *   &lt;li&gt;&lt;b&gt;IDLE:&lt;/b&gt; Delegates to honest behavior; block added to public blockchain.&lt;/li&gt;
+     *   &lt;li&gt;&lt;b&gt;MONITORING:&lt;/b&gt; Delegates to honest behavior; block added to public blockchain.&lt;/li&gt;
+     *   &lt;li&gt;&lt;b&gt;ATTACKING:&lt;/b&gt; Block is intercepted and added to the hidden chain instead
+     *       of the public blockchain. After addition, evaluates whether the release
+     *       advantage threshold has been reached.&lt;/li&gt;
+     * &lt;/ul&gt;
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ requires c != null;
+     *   //@ requires c instanceof Block;
+     *   //@ requires time &gt;= 0;
+     *   //@ requires currentState != null;
+     * }&lt;/pre&gt;
+     *
+     * @param c    the validated block (must not be null, must be a {@linkplain Block})
+     * @param time the current simulation time (must be non-negative)
+     * @throws NullPointerException     if {@code c} is null
+     * @throws IllegalArgumentException if {@code c} is not a Block, or {@code time} is negative
+     */
+    @Override
+    public void event_NodeCompletesValidation(ITxContainer c, long time) {
+<span class="fc" id="L437">        Objects.requireNonNull(c, &quot;Container cannot be null&quot;);</span>
+<span class="pc bpc" id="L438" title="1 of 2 branches missed.">        if (!(c instanceof Block)) {</span>
+<span class="nc" id="L439">            throw new IllegalArgumentException(</span>
+<span class="nc" id="L440">                &quot;Expected Block instance, got: &quot; + c.getClass().getSimpleName());</span>
+        } 
+<span class="pc bpc" id="L442" title="1 of 2 branches missed.">        if (time &lt; 0) throw new IllegalArgumentException(&quot;Time cannot be negative: &quot; + time);</span>
+
+        /*
+        if ((node.getID() == 30) &amp;&amp; (c.contains(71) || (c.contains(72)))) {
+        	Block l = (Block) c;
+            BitcoinReporter.addErrorEntry(Simulation.currTime + &quot;: node 30 completes validation of &quot; + node.getMiningPool().printIDs(&quot;;&quot;) + &quot; which points to &quot; + (l.getParent() != null ? l.getParent().getID() : &quot;null&quot;) + &quot;. State is &quot; + getAttackState());
+        } */
+
+        
+        
+<span class="pc bpc" id="L452" title="1 of 4 branches missed.">        switch (currentState) {</span>
+        case IDLE:
+            // In IDLE, delegate to honest validation
+<span class="fc" id="L455">            honestBehavior.event_NodeCompletesValidation(c, time);</span>
+<span class="fc" id="L456">            break;</span>
+
+        case MONITORING:
+            // In MONITORING, delegate to honest validation
+<span class="fc" id="L460">            honestBehavior.event_NodeCompletesValidation(c, time);</span>
+<span class="fc" id="L461">            break;</span>
+
+        case ATTACKING:
+<span class="pc bpc" id="L464" title="1 of 2 branches missed.">        	if (BitcoinReporter.reportsAttackDetails()) {</span>
+<span class="nc" id="L465">	            BitcoinReporter.addEvent(</span>
+<span class="nc" id="L466">	            		node.getSim().getSimID(),</span>
+	            		-1,
+	            		Simulation.currTime,
+	            		-1,
+	            		&quot;Validating Malicious block&quot;,
+<span class="nc" id="L471">	            		node.getID(),</span>
+	            		-1,
+<span class="nc" id="L473">	            		&quot;Hidden Chain: &quot; + printHiddenChainAndContent(&quot;-&quot;) </span>
+	            		);
+        	}
+            
+            // In ATTACKING, intercept block and add to hidden chain
+<span class="fc" id="L478">            nodeCompletesMaliciousValidation(c, time);</span>
+            // Check whether the release advantage threshold has been reached
+<span class="fc" id="L480">           	evaluateAttackState(time);</span>
+            break;
+        }
+        
+<span class="fc bfc" id="L484" title="All 2 branches covered.">    	if (attackTimedOut(time)) {</span>
+<span class="fc" id="L485">    		handleTimeOut(time);</span>
+        } 
+        
+<span class="fc" id="L488">    }</span>
+
+    @Override
+    protected boolean isWorthMining() {
+<span class="pc bpc" id="L492" title="1 of 2 branches missed.">    	if (currentState == State.ATTACKING) {</span>
+    		//If attacking don't be picky, just make sure there are tx's
+<span class="pc bpc" id="L494" title="1 of 2 branches missed.">    		return (node.getMiningPool().getCount() &gt; 0);</span>
+    	} else
+<span class="nc" id="L496">    		return (super.isWorthMining());</span>
+    }
+
+    private void handleTimeOut(long time) {
+<span class="pc bpc" id="L500" title="3 of 4 branches missed.">        switch (currentState) {</span>
+        case IDLE:
+<span class="fc" id="L502">        	break;</span>
+        case MONITORING: 
+        	//Simply change state.
+<span class="nc" id="L505">        	goToIdleState();</span>
+<span class="nc" id="L506">        	break;</span>
+        case ATTACKING:
+<span class="nc" id="L508">        	completeAttack(time);</span>
+        	break;
+        }
+    	
+<span class="fc" id="L512">    }</span>
+
+    private boolean attackTimedOut(long time) {
+<span class="fc bfc" id="L515" title="All 4 branches covered.">    	if ((attackTimeOut != -1) &amp;&amp; (time&gt;=attackTimeOut)) </span>
+<span class="fc" id="L516">    		return(true);</span>
+    	else
+<span class="fc" id="L518">    		return(false);</span>
+    }
+    
+
+    // ================================
+    // STATE TRANSITION METHODS
+    // ================================
+
+    /**
+     * Transitions the attack state from IDLE to MONITORING.
+     * &lt;p&gt;
+     * Enables passive observation of the network for attack opportunities.
+     * In MONITORING state, the node operates honestly while waiting for a block
+     * containing the target transaction, which automatically triggers transition
+     * to ATTACKING state. No blocks are mined secretly in MONITORING state.
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ requires currentState == State.IDLE;
+     *   //@ ensures currentState == State.MONITORING;
+     * }&lt;/pre&gt;
+     *
+     * @throws IllegalStateException if not currently in IDLE state
+     */
+    public void goToMonitoringState() {
+<span class="pc bpc" id="L544" title="1 of 2 branches missed.">        if (currentState == State.ATTACKING) {</span>
+<span class="nc" id="L545">            throw new IllegalStateException(</span>
+                &quot;Cannot switch from ATTACKING to MONITORING state&quot;);
+<span class="fc bfc" id="L547" title="All 2 branches covered.">        } else if (currentState == State.MONITORING) {</span>
+<span class="fc" id="L548">            throw new IllegalStateException(</span>
+                &quot;Already in MONITORING state&quot;);
+        }
+<span class="fc" id="L551">        currentState = State.MONITORING;</span>
+        
+        
+<span class="pc bpc" id="L554" title="1 of 2 branches missed.">        if (BitcoinReporter.reportsAttackEvents()) {</span>
+<span class="nc" id="L555">	        BitcoinReporter.addEvent(</span>
+<span class="nc" id="L556">	        		node.getSim().getSimID(),</span>
+	        		-1,
+	        		Simulation.currTime,
+	        		-1,
+	        		&quot;Going into Monitoring&quot;,
+<span class="nc" id="L561">	        		node.getID(),</span>
+	        		-1,
+<span class="nc" id="L563">	        		&quot;Power: &quot; + node.getHashPower() </span>
+	        		);
+        }
+<span class="fc" id="L566">    }</span>
+
+    /**
+     * Transitions the attack state from MONITORING back to IDLE.
+     * &lt;p&gt;
+     * Stops passive observation and returns to normal honest operation.
+     * No parameters are reset; the node can re-enter MONITORING with the same configuration.
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ requires currentState == State.MONITORING;
+     *   //@ ensures currentState == State.IDLE;
+     * }&lt;/pre&gt;
+     *
+     * @throws IllegalStateException if not currently in MONITORING state
+     */
+    public void goToIdleState() {
+<span class="pc bpc" id="L584" title="1 of 2 branches missed.">        if (currentState == State.ATTACKING) {</span>
+<span class="nc" id="L585">            throw new IllegalStateException(</span>
+                &quot;Cannot switch from ATTACKING to IDLE state&quot;);
+<span class="fc bfc" id="L587" title="All 2 branches covered.">        } else if (currentState == State.IDLE) {</span>
+<span class="fc" id="L588">            throw new IllegalStateException(</span>
+                &quot;Already in IDLE state&quot;);
+        }
+<span class="fc" id="L591">        currentState = State.IDLE;</span>
+        //BitcoinReporter.addErrorEntry(Simulation.currTime + &quot;: node going to IDLE&quot;);
+<span class="fc" id="L593">    }</span>
+
+    /**
+     * Cancels an ongoing attack without releasing the hidden chain.
+     * &lt;p&gt;
+     * Discards all accumulated hidden blocks and returns to IDLE state without
+     * broadcasting anything to the network. Called when attack conditions are no
+     * longer favorable (e.g., the public chain has outpaced the hidden chain).
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ requires currentState == State.ATTACKING;
+     *   //@ ensures currentState == State.IDLE;
+     *   //@ ensures hiddenChain.isEmpty();
+     *   //@ ensures hiddenChainTip == null;
+     * }&lt;/pre&gt;
+     */
+    public void cancelAttack() {
+<span class="fc" id="L612">        hiddenChain.clear();</span>
+<span class="fc" id="L613">        hiddenChainTip = null;</span>
+<span class="fc" id="L614">        currentState = State.IDLE;</span>
+        //BitcoinReporter.addErrorEntry(Simulation.currTime + &quot;: node going to IDLE&quot;);
+<span class="fc" id="L616">    }</span>
+
+
+    // ================================
+    // PRIVATE ATTACK METHODS
+    // ================================
+
+    /**
+     * Evaluates whether the attack can start and initiates it if conditions are met.
+     * &lt;p&gt;
+     * Called in MONITORING state when the target transaction appears in a block.
+     * The attack starts when the attacker's current advantage has reached (or fallen
+     * to) the configured start threshold: {@code getAdvantage() &lt;= startAdvantage}.
+     * &lt;/p&gt;
+     * &lt;p&gt;
+     * Example: if {@code startAdvantage = -2}, the attack starts once the attacker
+     * is 2 blocks behind the longest public chain tip.
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ requires currentState == State.MONITORING;
+     *   //@ requires startAdvantage != null;
+     * }&lt;/pre&gt;
+     *
+     * @throws IllegalStateException if called in IDLE or ATTACKING state, or if
+     *                               {@code startAdvantage} is not configured
+     */
+    private void considerAttacking() {
+<span class="pc bpc" id="L645" title="1 of 2 branches missed.">        if (currentState == State.IDLE) {</span>
+<span class="nc" id="L646">            throw new IllegalStateException(&quot;Should not consider attacking in IDLE state&quot;);</span>
+        }
+<span class="pc bpc" id="L648" title="1 of 2 branches missed.">        if (currentState == State.ATTACKING) {</span>
+<span class="nc" id="L649">            throw new IllegalStateException(</span>
+                &quot;Should not consider attacking in ATTACKING state; behavior is already in that mode&quot;);
+        }
+<span class="pc bpc" id="L652" title="1 of 2 branches missed.">        if (startAdvantage == null) {</span>
+<span class="nc" id="L653">            throw new IllegalStateException(</span>
+                &quot;startAdvantage must be configured before considering attack&quot;);
+        }
+
+<span class="pc bpc" id="L657" title="1 of 2 branches missed.">        if (getCurrentAdvantage() &lt;= startAdvantage) {</span>
+<span class="fc" id="L658">            startAttack();</span>
+        }
+<span class="fc" id="L660">    }</span>
+
+    /**
+     * Initiates the hidden chain attack.
+     * &lt;p&gt;
+     * Validates attack parameters, clears any previous hidden chain state, switches
+     * the node to attack hash power, and transitions to ATTACKING state. From this
+     * point, validated blocks are added to the hidden chain rather than the public
+     * blockchain.
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ requires currentState == State.MONITORING;
+     *   //@ requires startAdvantage != null &amp;&amp; releaseAdvantage != null;
+     *   //@ requires attackPower &gt; 0;
+     *   //@ ensures currentState == State.ATTACKING;
+     *   //@ ensures hiddenChain.isEmpty();
+     * }&lt;/pre&gt;
+     *
+     * @throws IllegalStateException if attack parameters are invalid or not configured
+     */
+    private void startAttack() {
+<span class="fc" id="L683">        validateAttackParameters();</span>
+<span class="fc" id="L684">        hiddenChain.clear();</span>
+<span class="fc" id="L685">        switchToAttackPower();</span>
+<span class="fc" id="L686">        currentState = State.ATTACKING;</span>
+    	//BitcoinReporter.addErrorEntry(Simulation.currTime + &quot;: node going to ATTACK&quot;);
+        
+        
+<span class="pc bpc" id="L690" title="1 of 2 branches missed.">        if (BitcoinReporter.reportsAttackEvents()) {</span>
+<span class="nc" id="L691">	        BitcoinReporter.addEvent(</span>
+<span class="nc" id="L692">	        		node.getSim().getSimID(),</span>
+	        		-1,
+	        		Simulation.currTime,
+	        		-1,
+	        		&quot;Attack is Starting&quot;,
+<span class="nc" id="L697">	        		node.getID(),</span>
+	        		-1,
+	        		&quot;Power: &quot; + attackPower
+	        		);
+        }
+<span class="fc" id="L702">    }</span>
+
+    /**
+     * Stores the node's current hash power and switches to attack hash power.
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ requires currentState != State.ATTACKING;
+     * }&lt;/pre&gt;
+     *
+     * @throws IllegalStateException if already in ATTACKING state
+     */
+    private void switchToAttackPower() {
+<span class="pc bpc" id="L715" title="1 of 2 branches missed.">        if (currentState == State.ATTACKING) {</span>
+<span class="nc" id="L716">            throw new IllegalStateException(&quot;Switching to attack power while already in ATTACKING state&quot;);</span>
+        }
+<span class="fc" id="L718">        honestPower = node.getHashPower();</span>
+<span class="fc" id="L719">        node.setHashPower(attackPower);</span>
+<span class="fc" id="L720">        rescheduleNextValidation();</span>
+<span class="fc" id="L721">    }</span>
+
+    
+    private void rescheduleNextValidation() {
+<span class="pc bpc" id="L725" title="1 of 2 branches missed.">    	if (node.isMining()) {</span>
+<span class="nc" id="L726">    		Event_ContainerValidation oldValidationEvent = node.getNextValidationEvent();</span>
+<span class="nc" id="L727">    		node.scheduleValidationEvent(new Block(node.getMiningPool().getTransactions()), Simulation.currTime);</span>
+    		
+<span class="nc" id="L729">    		long oldTime = oldValidationEvent.getTime();</span>
+<span class="nc" id="L730">    		long newTime = node.getNextValidationEvent().getTime(); </span>
+    		
+<span class="nc bnc" id="L732" title="All 2 branches missed.">    		if (oldTime &lt; newTime) {</span>
+    			//BitcoinReporter.addErrorEntry(&quot;*** STAYING to old validation event (oldtime,newtime) =  (&quot; + oldTime + &quot;,&quot; + newTime + &quot;).&quot; );
+    			
+<span class="nc" id="L735">    			node.getNextValidationEvent().ignoreEvt(true);</span>
+<span class="nc" id="L736">    			oldValidationEvent.ignoreEvt(false);</span>
+    			//Go back to the original validation event
+<span class="nc" id="L738">    			node.setNextValidationEvent(oldValidationEvent);</span>
+    			
+    		} else {
+    			//BitcoinReporter.addErrorEntry(&quot;*** SWITHCING to new validation event (oldtime,newtime) =  (&quot; + oldTime + &quot;,&quot; + newTime + &quot;).&quot; );
+<span class="nc" id="L742">    			node.getNextValidationEvent().ignoreEvt(false);</span>
+<span class="nc" id="L743">    			oldValidationEvent.ignoreEvt(true);</span>
+    		}
+<span class="nc" id="L745">    	} else {</span>
+<span class="pc bpc" id="L746" title="3 of 4 branches missed.">    		if ((node.getNextValidationEvent()!= null) &amp;&amp; !node.getNextValidationEvent().ignoreEvt()) {</span>
+<span class="nc" id="L747">    			BitcoinReporter.addErrorEntry(&quot;*** VERY STRANGE: node not mining and still has next valiation event!&quot;);	</span>
+    		}
+    	}
+<span class="fc" id="L750">    }</span>
+    
+    /**
+     * Restores the node's hash power to its pre-attack value.
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ requires honestPower != -1;
+     * }&lt;/pre&gt;
+     *
+     * @throws IllegalStateException if {@code honestPower} was never stored (attack never started)
+     */
+    private void switchToNormalPower() {
+<span class="pc bpc" id="L763" title="1 of 2 branches missed.">        if (honestPower == -1) {</span>
+<span class="nc" id="L764">            throw new IllegalStateException(&quot;honestPower uninitialized&quot;);</span>
+        }
+<span class="fc" id="L766">        node.setHashPower(honestPower);</span>
+<span class="fc" id="L767">    }</span>
+
+    /**
+     * Adds a validated block to the hidden chain during ATTACKING state.
+     * &lt;p&gt;
+     * Intercepts the block from the honest validation path, records validation
+     * metadata, sets the block's parent to the current hidden chain tip, and
+     * appends it to the hidden chain. Updates the hidden chain tip and restarts
+     * mining on the next hidden block.
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ requires c != null &amp;&amp; c instanceof Block;
+     *   //@ requires time &gt;= 0;
+     *   //@ requires currentState == State.ATTACKING;
+     *   //@ ensures hiddenChainTip == c;
+     *   //@ ensures hiddenChain.contains(c);
+     *   //@ ensures ((Block) c).getParent() == old(hiddenChainTip);
+     * }&lt;/pre&gt;
+     *
+     * @param c    the block to add to the hidden chain (must not be null)
+     * @param time the current simulation time
+     */
+    private void nodeCompletesMaliciousValidation(ITxContainer c, long time) {
+<span class="fc" id="L792">        Objects.requireNonNull(c, &quot;Container cannot be null&quot;);</span>
+<span class="pc bpc" id="L793" title="1 of 2 branches missed.">        if (!(c instanceof Block)) {</span>
+<span class="nc" id="L794">            throw new IllegalArgumentException(</span>
+<span class="nc" id="L795">                &quot;Expected Block instance, got: &quot; + c.getClass().getSimpleName());</span>
+        }
+<span class="pc bpc" id="L797" title="1 of 2 branches missed.">        if (time &lt; 0) throw new IllegalArgumentException(&quot;Time cannot be negative: &quot; + time);</span>
+
+<span class="fc" id="L799">        Block block = (Block) c;</span>
+
+        // Add validation metadata to the block
+<span class="fc" id="L802">        block.validateBlock(node.getMiningPool(),</span>
+                Simulation.currTime,
+<span class="fc" id="L804">                System.currentTimeMillis() - Simulation.sysStartTime,</span>
+<span class="fc" id="L805">                node.getID(),</span>
+                &quot;Node Completes Malicious Validation&quot;,
+<span class="fc" id="L807">                node.getOperatingDifficulty(),</span>
+<span class="fc" id="L808">                node.getProspectiveCycles());</span>
+
+        // Run default post-validation actions (cycle stats etc.)
+<span class="fc" id="L811">        node.completeValidation(node.getMiningPool(), time);</span>
+
+        // Report the validation event
+<span class="fc" id="L814">        BitcoinReporter.reportBlockEvent(</span>
+                Simulation.currentSimulationID,
+<span class="fc" id="L816">                block.getSimTime_validation(),</span>
+<span class="fc" id="L817">                block.getSysTime_validation(),</span>
+<span class="fc" id="L818">                block.getValidationNodeID(),</span>
+<span class="pc bpc" id="L819" title="1 of 2 branches missed.">                block.getID(), ((block.getParent() == null) ? -1 : block.getParent().getID()),</span>
+<span class="fc" id="L820">                block.getHeight(),</span>
+<span class="fc" id="L821">                block.printIDs(&quot;;&quot;),</span>
+                &quot;Node Completes Malicious Validation&quot;,
+<span class="fc" id="L823">                block.getValidationDifficulty(),</span>
+<span class="fc" id="L824">                block.getValidationCycles());</span>
+
+        // Link block to current hidden chain tip
+<span class="fc" id="L827">        block.setParent(hiddenChainTip);</span>
+
+        // Height is 1 if first hidden block (tip was null), otherwise tip height + 1
+<span class="pc bpc" id="L830" title="1 of 2 branches missed.">        int blockHeight = (hiddenChainTip == null) ? 1 : hiddenChainTip.getHeight() + 1;</span>
+<span class="fc" id="L831">        block.setHeight(blockHeight);</span>
+
+        // Advance the hidden chain tip
+<span class="fc" id="L834">        hiddenChainTip = block;</span>
+<span class="fc" id="L835">        hiddenChain.add(block);</span>
+
+<span class="fc" id="L837">        processPostValidationActivities(time);</span>
+<span class="fc" id="L838">    }</span>
+
+    /**
+     * Performs cleanup and re-initialization steps following hidden block validation.
+     * &lt;p&gt;
+     * Stops mining, resets the next validation event, removes validated transactions
+     * from the mining pool, reconstructs the pool, and reconsiders whether to continue
+     * mining the next hidden block.
+     * &lt;/p&gt;
+     *
+     * @param time the current simulation time
+     */
+    protected void processPostValidationActivities(long time) {
+        // Stop mining for now
+<span class="fc" id="L852">        node.stopMining();</span>
+        // Reset the next validation event
+<span class="fc" id="L854">        node.resetNextValidationEvent();</span>
+        // Remove validated transactions from the mining pool
+<span class="fc" id="L856">        node.removeFromPool(node.getMiningPool());</span>
+        // Reconstruct the mining pool with remaining transactions
+<span class="fc" id="L858">        honestBehavior.reconstructMiningPool();</span>
+        // Reconsider whether to mine the next hidden block
+<span class="fc" id="L860">        considerMining(time);</span>
+<span class="fc" id="L861">    }</span>
+
+    /**
+     * Evaluates whether the release advantage threshold has been reached.
+     * &lt;p&gt;
+     * Called after each hidden block is added. If the advantage is sufficient
+     * ({@code getAdvantage() &gt;= releaseAdvantage}), the hidden chain is released.
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ requires currentState == State.ATTACKING;
+     * }&lt;/pre&gt;
+     *
+     * @param time the current simulation time for chain release broadcast
+     * @throws IllegalStateException if not in ATTACKING state
+     */
+    private void evaluateAttackState(long time) {
+<span class="pc bpc" id="L879" title="1 of 2 branches missed.">        if (currentState != State.ATTACKING) {</span>
+<span class="nc" id="L880">            throw new IllegalStateException(</span>
+                &quot;evaluateAttackState() can only be called in ATTACKING state, currently in: &quot; + currentState);
+        }
+
+<span class="fc bfc" id="L884" title="All 2 branches covered.">        if (getReleaseStrategy() == ReleaseStrategy.ADVANTAGE) {</span>
+<span class="fc bfc" id="L885" title="All 2 branches covered.">	        if (getCurrentAdvantage() &gt;= getReleaseAdvantage()) {</span>
+<span class="fc" id="L886">	            completeAttack(time);</span>
+	        }
+<span class="pc bpc" id="L888" title="1 of 2 branches missed.">        } else if (getReleaseStrategy() == ReleaseStrategy.CONFIRMATIONS) {</span>
+<span class="fc bfc" id="L889" title="All 2 branches covered.">	        if ((getCurrentConfirmations() &gt;= getReleaseConfirmations()) &amp;&amp; </span>
+<span class="pc bpc" id="L890" title="1 of 2 branches missed.">	        (getCurrentAdvantage() &gt;= 1)) {</span>
+<span class="nc" id="L891">	            completeAttack(time);</span>
+	            //BitcoinReporter.addErrorEntry(node.getSim().getSimID() + &quot;,&quot; + getCurrentConfirmations() + &quot;,&quot; + getCurrentAdvantage() + &quot;, true&quot; );
+	        } else {
+	        	//BitcoinReporter.addErrorEntry(node.getSim().getSimID() + &quot;,&quot; + getCurrentConfirmations() + &quot;,&quot; + getCurrentAdvantage()+ &quot;, false&quot;);
+	        }
+        }
+<span class="fc" id="L897">    }</span>
+
+    /**
+     * Releases the accumulated hidden chain to the network.
+     * &lt;p&gt;
+     * Transitions to IDLE state, then broadcasts each block in the hidden chain
+     * to the network (both receiving it locally and cloning it for propagation).
+     * &lt;/p&gt;
+     * &lt;p&gt;
+     * The released chain may reorganize the public blockchain if it is longer than
+     * the current main chain.
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ requires currentState == State.ATTACKING;
+     *   //@ requires !hiddenChain.isEmpty();
+     *   //@ ensures currentState == State.IDLE;
+     *   //@ ensures hiddenChain.isEmpty();
+     *   //@ ensures hiddenChainTip == null;
+     * }&lt;/pre&gt;
+     *
+     * @param time the current simulation time for broadcast timestamp
+     * @throws IllegalStateException if not in ATTACKING state
+     */
+    public void completeAttack(long time) {
+<span class="pc bpc" id="L923" title="1 of 2 branches missed.">        if (currentState != State.ATTACKING) {</span>
+<span class="nc" id="L924">            throw new IllegalStateException(</span>
+                &quot;Cannot release chain outside of ATTACKING state, currently in: &quot; + currentState);
+        }
+
+        // Transition to IDLE before broadcasting so received blocks are processed honestly
+<span class="fc" id="L929">        currentState = State.IDLE;</span>
+        //BitcoinReporter.addErrorEntry(Simulation.currTime + &quot;: node going to IDLE&quot;);
+<span class="pc bpc" id="L931" title="1 of 2 branches missed.">        if (BitcoinReporter.reportsAttackDetails()) {</span>
+<span class="nc" id="L932">	        BitcoinReporter.addEvent(</span>
+<span class="nc" id="L933">	        		node.getSim().getSimID(),</span>
+	        		-1,
+	        		Simulation.currTime,
+	        		-1,
+	        		&quot;Releasing chain&quot;,
+<span class="nc" id="L938">	        		node.getID(),</span>
+	        		-1,
+<span class="nc" id="L940">	        		&quot;Hidden Chain: &quot; + printHiddenChainAndContent(&quot;-&quot;) </span>
+	        		);
+<span class="pc bpc" id="L942" title="1 of 2 branches missed.">        } else if (BitcoinReporter.reportsAttackEvents()) {</span>
+<span class="nc" id="L943">	        BitcoinReporter.addEvent(</span>
+<span class="nc" id="L944">	        		node.getSim().getSimID(),</span>
+	        		-1,
+	        		Simulation.currTime,
+	        		-1,
+	        		&quot;Releasing chain&quot;,
+<span class="nc" id="L949">	        		node.getID(),</span>
+	        		-1,
+<span class="nc" id="L951">	        		&quot;Lenght: &quot; + hiddenChain.size()</span>
+	        		);
+        }
+        
+<span class="fc bfc" id="L955" title="All 2 branches covered.">        for (Block block : hiddenChain) {</span>
+            // Process the block locally as if received from another node
+<span class="fc" id="L957">            event_NodeReceivesPropagatedContainer(block);</span>
+            // Propagate a clone to the rest of the network
+            try {
+<span class="fc" id="L960">                node.broadcastContainer((ITxContainer) block.clone(), time);</span>
+<span class="nc" id="L961">            } catch (CloneNotSupportedException e) {</span>
+<span class="nc" id="L962">                e.printStackTrace();</span>
+<span class="fc" id="L963">            }</span>
+<span class="fc" id="L964">        }</span>
+
+<span class="fc" id="L966">        hiddenChain.clear();</span>
+<span class="fc" id="L967">        hiddenChainTip = null;</span>
+        
+<span class="fc" id="L969">        BitcoinReporter.addErrorEntry(getNetworkHonestPower() + &quot;,&quot; </span>
+<span class="fc" id="L970">        + getAttackPower());</span>
+        
+<span class="fc" id="L972">        switchToNormalPower();</span>
+<span class="fc" id="L973">    }</span>
+
+
+
+    /**
+     * Validates that all required attack parameters are properly configured.
+     * &lt;p&gt;
+     * Checks:
+     * &lt;ul&gt;
+     *   &lt;li&gt;{@code attackPower &gt; 0}: Mining capability must be positive.&lt;/li&gt;
+     *   &lt;li&gt;{@code startAdvantage != null}: Start threshold must be set.&lt;/li&gt;
+     *   &lt;li&gt;{@code releaseAdvantage != null}: Release threshold must be set.&lt;/li&gt;
+     *   &lt;li&gt;{@code releaseAdvantage &gt;= startAdvantage}: Release should be achievable.&lt;/li&gt;
+     * &lt;/ul&gt;
+     * Warnings are logged for unusual but technically valid configurations.
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ requires attackPower &gt; 0;
+     *   //@ requires startAdvantage != null;
+     *   //@ requires releaseAdvantage != null;
+     * }&lt;/pre&gt;
+     *
+     * @throws IllegalStateException if any required parameter is not set or is invalid
+     */
+    private void validateAttackParameters() {
+<span class="pc bpc" id="L1000" title="1 of 2 branches missed.">        if (attackPower &lt;= 0) {</span>
+<span class="nc" id="L1001">            throw new IllegalStateException(</span>
+                &quot;Attack power validation failed: must be positive, got &quot; + attackPower);
+        }
+
+<span class="pc bpc" id="L1005" title="1 of 2 branches missed.">        if (startAdvantage == null) {</span>
+<span class="nc" id="L1006">            throw new IllegalStateException(</span>
+                &quot;Start advantage validation failed: must be configured before attack initiation&quot;);
+        }
+        
+<span class="fc" id="L1010">        getReleaseStrategy(); </span>
+        
+<span class="pc bpc" id="L1012" title="1 of 2 branches missed.">        if (startAdvantage &gt; 0) {</span>
+<span class="nc" id="L1013">            String msg = &quot;Attack starting with positive advantage (ahead): &quot; + startAdvantage;</span>
+<span class="nc" id="L1014">            Debug.p(1, &quot;WARNING: &quot; + msg);</span>
+<span class="nc" id="L1015">            BitcoinReporter.addErrorEntry(&quot;WARNING: HiddenChainAttackBehavior &quot; + msg);</span>
+        }
+
+<span class="pc bpc" id="L1018" title="1 of 4 branches missed.">        if ((getReleaseStrategy() == ReleaseStrategy.ADVANTAGE) &amp;&amp; (releaseAdvantage &lt; 0)) {</span>
+<span class="nc" id="L1019">            String msg = &quot;Attack releasing with negative advantage: &quot; + releaseAdvantage;</span>
+<span class="nc" id="L1020">            Debug.p(1, &quot;WARNING: &quot; + msg);</span>
+<span class="nc" id="L1021">            BitcoinReporter.addErrorEntry(&quot;WARNING: HiddenChainAttackBehavior &quot; + msg);</span>
+        }
+
+<span class="pc bpc" id="L1024" title="1 of 4 branches missed.">        if ((getReleaseStrategy() == ReleaseStrategy.ADVANTAGE) &amp;&amp; (releaseAdvantage &lt; startAdvantage)) {</span>
+<span class="nc" id="L1025">            String msg = &quot;Release advantage (&quot; + releaseAdvantage +</span>
+                         &quot;) less than start advantage (&quot; + startAdvantage +
+                         &quot;). Attack may not progress.&quot;;
+<span class="nc" id="L1028">            Debug.p(1, &quot;WARNING: &quot; + msg);</span>
+<span class="nc" id="L1029">            BitcoinReporter.addErrorEntry(&quot;WARNING: HiddenChainAttackBehavior &quot; + msg);</span>
+        }
+        
+<span class="fc" id="L1032">    }</span>
+
+    
+
+    /**
+     * Determines whether a given transaction is contained in any block of the hidden chain.
+     * &lt;p&gt;
+     * Traverses the hidden chain from tip to root, checking each block for the transaction.
+     * Returns {@code false} immediately if no attack is in progress (i.e., the hidden chain
+     * tip is {@code null}). This method is state-independent: it may be called in any attack
+     * state, but will only return {@code true} while an attack is active and the transaction
+     * has been mined into a hidden block.
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ requires tx != null;
+     *   //@ ensures hiddenChainTip == null ==&gt; \result == false;
+     *   //@ ensures (\exists Block b; hiddenChain.contains(b); b.contains(tx))
+     *   //            ==&gt; \result == true;
+     *   //@ ensures (\forall Block b; hiddenChain.contains(b); !b.contains(tx))
+     *   //            ==&gt; \result == false;
+     * }&lt;/pre&gt;
+     *
+     * @param tx the transaction to search for (must not be null)
+     * @return {@code true} if {@code tx} is found in any block of the hidden chain;
+     *         {@code false} otherwise, including when no attack is in progress
+     */
+    public boolean inHiddenChain(Transaction tx) {
+<span class="fc bfc" id="L1061" title="All 2 branches covered.">        if (hiddenChainTip == null) {</span>
+<span class="fc" id="L1062">            return false;</span>
+        }
+
+<span class="fc" id="L1065">        Block current = hiddenChainTip;</span>
+<span class="fc bfc" id="L1066" title="All 2 branches covered.">        while (current != null) {</span>
+<span class="fc bfc" id="L1067" title="All 2 branches covered.">        	if (current.contains(tx)) {</span>
+<span class="fc" id="L1068">        		return(true);</span>
+        	}
+<span class="fc" id="L1070">            current = (Block) current.getParent();</span>
+        }
+
+<span class="fc" id="L1073">        return false;</span>
+    }
+    
+    public int getCurrentConfirmations() {
+<span class="pc bpc" id="L1077" title="1 of 2 branches missed.">    	if (targetTransaction == -1) {</span>
+<span class="nc" id="L1078">    		throw new IllegalStateException(&quot;Target Transaction has not been set: &quot; + targetTransaction);</span>
+    	}
+<span class="fc" id="L1080">    	Integer confirmations = node.getStructure().getConfirmations(targetTransaction);</span>
+    	
+<span class="pc bpc" id="L1082" title="1 of 2 branches missed.">    	if (confirmations == null) {</span>
+<span class="nc" id="L1083">    		return -1;</span>
+    	} else {
+<span class="fc" id="L1085">    		return (confirmations);</span>
+    	}
+    }
+    
+    
+    // ================================
+    // GETTERS AND SETTERS
+    // ================================
+
+    
+    
+    public Integer getReleaseConfirmations() {
+<span class="fc" id="L1097">		return releaseConfirmations;</span>
+	}
+
+	public void setReleaseConfirmations(Integer releaseConfirmations) {
+<span class="pc bpc" id="L1101" title="2 of 4 branches missed.">		if ((releaseConfirmations == null) || (releaseConfirmations &lt; 0 )) {</span>
+<span class="nc" id="L1102">			throw new IllegalArgumentException(&quot;Release confirmations must be non-zero&quot;);</span>
+		}
+<span class="fc" id="L1104">		this.releaseConfirmations = releaseConfirmations;</span>
+<span class="fc" id="L1105">	}</span>
+    
+	public ReleaseStrategy getReleaseStrategy() {
+<span class="pc bpc" id="L1108" title="1 of 4 branches missed.">		if ((releaseConfirmations == null) &amp;&amp; (releaseAdvantage == null)) {</span>
+<span class="nc" id="L1109">			throw new IllegalStateException(&quot;Cannot infer release strategy: neither releaseConfirmations nor releaseAdvantage have been set.&quot;);</span>
+<span class="pc bpc" id="L1110" title="1 of 4 branches missed.">		} else if (((releaseConfirmations != null) &amp;&amp; (releaseAdvantage != null))) {</span>
+<span class="nc" id="L1111">			throw new IllegalStateException(&quot;Cannot infer release strategy: both releaseConfirmations and releaseAdvantage have been set.&quot;);</span>
+<span class="pc bpc" id="L1112" title="1 of 4 branches missed.">		} else if (((releaseConfirmations != null) &amp;&amp; (releaseAdvantage == null))) {</span>
+<span class="fc" id="L1113">			return ReleaseStrategy.CONFIRMATIONS;</span>
+<span class="pc bpc" id="L1114" title="2 of 4 branches missed.">		} else if (((releaseConfirmations == null) &amp;&amp; (releaseAdvantage != null))) {</span>
+<span class="fc" id="L1115">			return ReleaseStrategy.ADVANTAGE;</span>
+		}
+<span class="nc" id="L1117">		throw new IllegalStateException(&quot;Error in conditional.&quot;);</span>
+	}
+	
+	
+    
+    /**
+     * Returns the current operational state of the attack.
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ ensures \result != null;
+     *   //@ ensures \result == currentState;
+     * }&lt;/pre&gt;
+     *
+     * @return the current {@linkplain State}
+     */
+    public State getAttackState() {
+<span class="fc" id="L1134">        return currentState;</span>
+    }
+
+    /**
+     * Returns the current advantage (hidden chain height minus public chain height).
+     * &lt;p&gt;
+     * Positive values indicate the hidden chain is ahead; zero or negative means it
+     * is behind. This value determines whether to release the hidden chain.
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ requires node != null;
+     *   //@ requires node.getStructure() != null;
+     *   //@ requires node.getStructure().getLongestTip() != null;
+     *   //@ ensures \result == (hiddenChainTip == null ? 0 : hiddenChainTip.height)
+     *   //                       - longestTip.height;
+     * }&lt;/pre&gt;
+     *
+     * @return the advantage in blocks (can be negative if hidden chain is behind)
+     * @throws IllegalStateException if node, blockchain structure, or longest tip is null
+     */
+    public int getCurrentAdvantage() {
+<span class="pc bpc" id="L1157" title="1 of 2 branches missed.">        if (node == null) {</span>
+<span class="nc" id="L1158">            throw new IllegalStateException(</span>
+                &quot;Cannot calculate advantage: BitcoinNode reference is null&quot;);
+        }
+<span class="pc bpc" id="L1161" title="1 of 2 branches missed.">        if (node.getStructure() == null) {</span>
+<span class="nc" id="L1162">            throw new IllegalStateException(</span>
+<span class="nc" id="L1163">                &quot;Cannot calculate advantage: blockchain structure is null in node &quot; + node.getID());</span>
+        }
+
+<span class="fc" id="L1166">        Block longestTip = node.getStructure().getLongestTip();</span>
+<span class="pc bpc" id="L1167" title="1 of 2 branches missed.">        if (longestTip == null) {</span>
+<span class="nc" id="L1168">            throw new IllegalStateException(</span>
+<span class="nc" id="L1169">                &quot;Cannot calculate advantage: longest tip is null in node &quot; + node.getID() +</span>
+                &quot; (blockchain may be uninitialized)&quot;);
+        }
+
+<span class="fc bfc" id="L1173" title="All 2 branches covered.">        int hiddenHeight = (hiddenChainTip == null) ? 0 : hiddenChainTip.getHeight();</span>
+<span class="fc" id="L1174">        int publicHeight = longestTip.getHeight();</span>
+<span class="fc" id="L1175">        return hiddenHeight - publicHeight;</span>
+    }
+
+    /**
+     * Sets the attacker's mining power, i.e. the power that the attacker 
+     * will assume once the attack starts. The attacker will revert to 
+     * original power after the attack
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ requires power &gt; 0;
+     *   //@ ensures this.attackPower == power;
+     * }&lt;/pre&gt;
+     *
+     * @param power the mining power in trials per time unit (must be positive)
+     * @throws IllegalArgumentException if {@code power &lt;= 0}
+     */
+    public void setAttackPower(float power) {
+<span class="fc bfc" id="L1193" title="All 2 branches covered.">        if (power &lt;= 0) {</span>
+<span class="fc" id="L1194">            throw new IllegalArgumentException(</span>
+                &quot;Attack power must be positive, got: &quot; + power);
+        }
+<span class="fc" id="L1197">        this.attackPower = power;</span>
+<span class="fc" id="L1198">    }</span>
+
+    /**
+     * Returns the attacker's mining power.
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ ensures \result == this.attackPower;
+     * }&lt;/pre&gt;
+     *
+     * @return the mining power in trials per time unit
+     */
+    public float getAttackPower() {
+<span class="fc" id="L1211">        return attackPower;</span>
+    }
+
+    
+	public void setNetworkHonestPower(float f) {
+<span class="nc" id="L1216">		this.networkHonestPower = f;</span>
+<span class="nc" id="L1217">	}</span>
+    
+	public float getNetworkHonestPower() {
+<span class="fc" id="L1220">		return (this.networkHonestPower);</span>
+	}
+    
+	
+    
+    /**
+     * Sets the target transaction for the attack.
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ requires txID &gt;= -1;
+     *   //@ ensures this.targetTransaction == txID;
+     * }&lt;/pre&gt;
+     *
+     * @param txID the transaction ID to target (-1 for no specific target)
+     */
+    public void setTargetTransaction(long txID) {
+<span class="fc" id="L1237">        this.targetTransaction = txID;</span>
+<span class="fc" id="L1238">    }</span>
+
+    /**
+     * Returns the target transaction ID.
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ ensures \result == this.targetTransaction;
+     * }&lt;/pre&gt;
+     *
+     * @return the target transaction ID (-1 if no target set)
+     */
+    public long getTargetTransaction() {
+<span class="nc" id="L1251">        return targetTransaction;</span>
+    }
+
+    /**
+     * Sets the advantage threshold that triggers attack start.
+     * &lt;p&gt;
+     * Typically zero or negative. For example, -2 means &quot;start when 2 blocks behind&quot;.
+     * The attack starts when {@code getAdvantage() &lt;= startAdvantage}.
+     * Must be set before entering MONITORING state.
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ ensures this.startAdvantage == startAdv;
+     * }&lt;/pre&gt;
+     *
+     * @param startAdv the start advantage threshold (typically zero or negative)
+     */
+    public void setStartAdvantage(Integer startAdv) {
+<span class="fc" id="L1270">        this.startAdvantage = startAdv;</span>
+<span class="fc" id="L1271">    }</span>
+
+    /**
+     * Returns the start advantage threshold.
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ ensures \result == this.startAdvantage;
+     * }&lt;/pre&gt;
+     *
+     * @return the start advantage threshold (null if not set)
+     */
+    public Integer getStartAdvantage() {
+<span class="nc" id="L1284">        return startAdvantage;</span>
+    }
+
+    /**
+     * Sets the advantage threshold that triggers hidden chain release.
+     * &lt;p&gt;
+     * Typically zero or positive. For example, 2 means &quot;release when 2 blocks ahead&quot;.
+     * The chain is released when {@code getAdvantage() &gt;= releaseAdvantage}.
+     * Zero reproduces Nakamoto attack probabilities.
+     * Must be set before entering MONITORING state.
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ ensures this.releaseAdvantage == relAdv;
+     * }&lt;/pre&gt;
+     *
+     * @param relAdv the release advantage threshold (typically zero or positive)
+     */
+    public void setReleaseAdvantage(Integer relAdv) {
+<span class="fc" id="L1304">        this.releaseAdvantage = relAdv;</span>
+<span class="fc" id="L1305">    }</span>
+
+    /**
+     * Returns the release advantage threshold.
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ ensures \result == this.releaseAdvantage;
+     * }&lt;/pre&gt;
+     *
+     * @return the release advantage threshold (null if not set)
+     */
+    public Integer getReleaseAdvantage() {
+<span class="fc" id="L1318">        return releaseAdvantage;</span>
+    }
+
+    /**
+     * Returns the wrapped honest behavior strategy.
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ ensures \result == this.honestBehavior;
+     * }&lt;/pre&gt;
+     *
+     * @return the {@linkplain HonestNodeBehavior} instance
+     */
+    public HonestNodeBehavior getHonestBehavior() {
+<span class="nc" id="L1332">        return honestBehavior;</span>
+    }
+
+    /**
+     * Sets the wrapped honest behavior strategy.
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ ensures this.honestBehavior == honestBehavior;
+     * }&lt;/pre&gt;
+     *
+     * @param honestBehavior the honest behavior to wrap (must not be null)
+     */
+    public void setHonestBehavior(HonestNodeBehavior honestBehavior) {
+<span class="nc" id="L1346">        this.honestBehavior = honestBehavior;</span>
+<span class="nc" id="L1347">    }</span>
+
+    /**
+     * Sets the simulation time at which an ongoing MONITORING or ATTACKING phase
+     * must be forcibly terminated.
+     * &lt;p&gt;
+     * When the simulation clock reaches this value, {@link #handleTimeOut()} should
+     * be called to abort the attack. A value of {@code -1} (or any sentinel agreed
+     * by the caller) indicates that no timeout is in effect.
+     * &lt;/p&gt;
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ requires timeOut &gt;= 0;
+     *   //@ ensures this.attackTimeOut == timeOut;
+     * }&lt;/pre&gt;
+     *
+     * @param timeOut the simulation time (in milliseconds from sim start) after which
+     *                the attack must cease; must be non-negative
+     * @throws IllegalArgumentException if {@code timeOut} is negative
+     */
+    public void setAttackTimeOut(long timeOut) {
+<span class="pc bpc" id="L1369" title="1 of 2 branches missed.">        if (timeOut &lt; 0) {</span>
+<span class="nc" id="L1370">            throw new IllegalArgumentException(&quot;Attack timeout must be non-negative, got: &quot; + timeOut);</span>
+        }
+<span class="fc" id="L1372">        this.attackTimeOut = timeOut;</span>
+<span class="fc" id="L1373">    }</span>
+
+    /**
+     * Returns the simulation time at which the current MONITORING or ATTACKING phase
+     * will be forcibly terminated.
+     *
+     * &lt;p&gt;&lt;b&gt;JML Contract:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;{@code
+     *   //@ ensures \result == this.attackTimeOut;
+     * }&lt;/pre&gt;
+     *
+     * @return the timeout value in simulation-time milliseconds
+     */
+    public long getAttackTimeOut() {
+<span class="nc" id="L1387">        return attackTimeOut;</span>
+    }
+
+
+    // ================================
+    // DEBUG / PRINT
+    // ================================
+
+    /**
+     * Returns a string representation of the attack behavior state.
+     *
+     * &lt;p&gt;&lt;b&gt;Format:&lt;/b&gt;&lt;/p&gt;
+     * &lt;pre&gt;
+     * HiddenChainAttackBehavior{
+     *     currentState=ATTACKING,
+     *     attackPower=1.5,
+     *     targetTransaction=42,
+     *     startAdvantage=-2,
+     *     releaseAdvantage=2,
+     *     advantage=1,
+     *     hiddenChainLength=5
+     * }
+     * &lt;/pre&gt;
+     *
+     * @return formatted string with attack state, configuration, and current metrics
+     */
+    @Override
+    public String toString() {
+<span class="nc" id="L1415">        return &quot;HiddenChainAttackBehavior{&quot; +</span>
+                &quot;currentState=&quot; + currentState +
+                &quot;, attackPower=&quot; + attackPower +
+                &quot;, targetTransaction=&quot; + targetTransaction +
+                &quot;, startAdvantage=&quot; + startAdvantage +
+                &quot;, releaseAdvantage=&quot; + releaseAdvantage +
+                &quot;, releaseConfirmations=&quot; + releaseConfirmations +
+<span class="nc" id="L1422">                &quot;, advantage=&quot; + getCurrentAdvantage() +</span>
+<span class="nc" id="L1423">                &quot;, hiddenChainLength=&quot; + hiddenChain.size() +</span>
+                '}';
+    }
+
+    /**
+     * Returns a comma-separated string of block IDs in the hidden chain,
+     * ordered from the chain root to the tip.
+     * Returns an empty string if {@code hiddenChainTip} is null.
+     *
+     * @return block IDs from root to tip, e.g. {@code &quot;5,6,7&quot;}, or {@code &quot;&quot;} if empty
+     */
+    public String printHiddenChain(String sep) {
+<span class="fc bfc" id="L1435" title="All 2 branches covered.">        if (hiddenChainTip == null) {</span>
+<span class="fc" id="L1436">            return &quot;&quot;;</span>
+        }
+
+<span class="fc" id="L1439">        StringBuilder result = new StringBuilder();</span>
+<span class="fc" id="L1440">        Block current = hiddenChainTip;</span>
+
+<span class="fc bfc" id="L1442" title="All 2 branches covered.">        while (current != null) {</span>
+<span class="fc bfc" id="L1443" title="All 2 branches covered.">            if (result.length() &gt; 0) {</span>
+<span class="fc" id="L1444">                result.append(sep);</span>
+            }
+<span class="fc" id="L1446">            result.append(current.getID());</span>
+<span class="fc" id="L1447">            current = (Block) current.getParent();</span>
+        }
+
+<span class="fc" id="L1450">        return result.toString();</span>
+    }
+
+
+    
+    public String printHiddenChainAndContent(String sep) {
+<span class="fc bfc" id="L1456" title="All 2 branches covered.">        if (hiddenChainTip == null) {</span>
+<span class="fc" id="L1457">            return &quot;&quot;;</span>
+        }
+
+<span class="fc" id="L1460">        StringBuilder result = new StringBuilder();</span>
+<span class="fc" id="L1461">        Block current = hiddenChainTip;</span>
+
+<span class="fc bfc" id="L1463" title="All 2 branches covered.">        while (current != null) {</span>
+<span class="fc bfc" id="L1464" title="All 2 branches covered.">            if (result.length() &gt; 0) {</span>
+<span class="fc" id="L1465">                result.append(sep);</span>
+            }
+<span class="fc" id="L1467">            result.append(current.getID() + &quot; (&quot; + current.printIDs(&quot;;&quot;) + &quot;)&quot;);</span>
+<span class="fc" id="L1468">            current = (Block) current.getParent();</span>
+        }
+
+<span class="fc" id="L1471">        return result.toString();</span>
+    }
+
+    
+    
+    // ================================
+    // INNER ENUMS
+    // ================================
+
+    /**
+     * Enumeration of attack operational states.
+     */
+<span class="fc" id="L1483">    public enum State {</span>
+        /** Normal honest operation; no attack in progress. */
+<span class="fc" id="L1485">        IDLE,</span>
+
+        /** Monitoring the network for attack trigger; node operates honestly. */
+<span class="fc" id="L1488">        MONITORING,</span>
+
+        /** Actively mining a hidden chain while maintaining a public honest appearance. */
+<span class="fc" id="L1491">        ATTACKING</span>
+    }
+    
+    /**
+     * Enumeration of attack operational states.
+     */
+<span class="fc" id="L1497">    public enum ReleaseStrategy {</span>
+        /** Release based on the advantage of your chain. */
+<span class="fc" id="L1499">        ADVANTAGE,</span>
+
+        /** Release based on the number of confirmations of the target transaction. */
+<span class="fc" id="L1502">        CONFIRMATIONS</span>
+    }
+
+
+    
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

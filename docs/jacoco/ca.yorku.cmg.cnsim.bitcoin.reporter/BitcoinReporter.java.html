@@ -1,0 +1,334 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BitcoinReporter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CNSim-based Implementation of Nakamoto Consensus</a> &gt; <a href="index.source.html" class="el_package">ca.yorku.cmg.cnsim.bitcoin.reporter</a> &gt; <span class="el_source">BitcoinReporter.java</span></div><h1>BitcoinReporter.java</h1><pre class="source lang-java linenums">package ca.yorku.cmg.cnsim.bitcoin.reporter;
+
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+
+import ca.yorku.cmg.cnsim.engine.config.Config;
+import ca.yorku.cmg.cnsim.engine.reporter.Reporter;
+
+
+/**
+ * Specialized reporter for Bitcoin simulations extending the base {@linkplain Reporter}.
+ * &lt;p&gt;
+ * In addition to the general simulation reports produced by {@link Reporter}, 
+ * {@code BitcoinReporter} provides detailed reporting on:
+ * &lt;ul&gt;
+ *   &lt;li&gt;The state of the blockchain (including sequences of block IDs and orphaned blocks).&lt;/li&gt;
+ *   &lt;li&gt;Individual block events such as validation, mining, and propagation.&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;p&gt;
+ * These reports are intended to be used from within Bitcoin-specific simulation
+ * entities, e.g., {@linkplain ca.yorku.cmg.cnsim.bitcoin.node.BitcoinNode} or
+ * {@linkplain ca.yorku.cmg.cnsim.bitcoin.structure.Block}.
+ * &lt;/p&gt;
+ * 
+ * @author Sotirios Liaskos for the Conceptual Modeling Group @ York University
+ * 
+ * @see Reporter
+ * @see ca.yorku.cmg.cnsim.bitcoin.node.BitcoinNode
+ * @see ca.yorku.cmg.cnsim.bitcoin.structure.Block
+ */
+<span class="nc" id="L32">public class BitcoinReporter extends Reporter {</span>
+	
+    /** Log of individual block events for the simulation */
+<span class="fc" id="L35">	protected static ArrayList&lt;String&gt; blockLog = new ArrayList&lt;String&gt;();</span>
+	
+    /** Log of blockchain structure and orphaned blocks */
+<span class="fc" id="L38">	protected static ArrayList&lt;String&gt; structureLog = new ArrayList&lt;String&gt;();</span>
+
+	/** Log of attack-related events */
+<span class="fc" id="L41">	protected static ArrayList&lt;String&gt; attackLog = new ArrayList&lt;String&gt;();</span>
+
+	 /** Writer used for flushing block logs to file */
+	protected static FileWriter blockWriter;
+
+    /** Flag indicating whether block events should be reported */
+	protected static boolean reportBlockEvents;
+
+    /** Flag indicating whether blockchain structure events should be reported */
+	protected static boolean reportStructureEvents;
+
+	/** Flag indicating whether attack events should be reported */
+	protected static boolean reportAttackEvents;
+
+	/** Flag indicating whether attack events should be reported in detail */
+	protected static boolean reportAttackDetails;
+	
+	
+    /** Static initializer to add CSV headers for block, structure, and attack logs */
+	static {
+<span class="fc" id="L61">		blockLog.add(&quot;SimID, SimTime, SysTime, NodeID, &quot;</span>
+				+ &quot;BlockID, ParentID, Height, BlockContent,&quot;
+				+ &quot;EventType, Difficulty, Cycles&quot;);
+<span class="fc" id="L64">		structureLog.add(&quot;SimID, SimTime, SysTime, NodeID, BlockID, ParentBlockID, Height, Content, Place&quot;);</span>
+<span class="fc" id="L65">		attackLog.add(&quot;SimID, SimTime, SysTime, NodeID, EventType, TransactionID, BlockID, BlockHeight, HiddenChainLength, PublicChainLength, Description&quot;);</span>
+<span class="fc" id="L66">	}</span>
+	
+	 /**
+     * Initializes reporting settings from simulation configuration properties.
+     * &lt;p&gt;
+     * Sets {@code reportBlockEvents}, {@code reportStructureEvents}, and {@code reportAttackEvents} based
+     * on the configuration keys {@code reporter.reportBlockEvents}, {@code reporter.reportStructureEvents},
+     * and {@code reporter.reportAttackEvents}, respectively.
+     */
+	public static void initialize() {
+<span class="nc" id="L76">		BitcoinReporter.reportBlockEvents(Config.getPropertyBoolean(&quot;reporter.reportBlockEvents&quot;));</span>
+<span class="nc" id="L77">		BitcoinReporter.reportStructureEvents(Config.getPropertyBoolean(&quot;reporter.reportStructureEvents&quot;));</span>
+
+<span class="nc" id="L79">		BitcoinReporter.reportAttackEvents(Config.getOptionalPropertyBoolean(&quot;reporter.reportAttackEvents&quot;));</span>
+<span class="nc" id="L80">		BitcoinReporter.reportAttackDetails(Config.getOptionalPropertyBoolean(&quot;reporter.reportAttackDetails&quot;));</span>
+<span class="nc" id="L81">	}</span>
+	
+	
+    /**
+     * Adds blockchain and orphan block state to the structure log.
+     *
+     * @param blockchain an array of strings representing the current blockchain state
+     * @param orphans an array of strings representing the orphaned blocks
+     */
+	public static void reportBlockChainState(String[] blockchain, String[] orphans) {
+<span class="nc bnc" id="L91" title="All 2 branches missed.">		if (BitcoinReporter.reportsStructureEvents()) {</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">			for (String s :blockchain) {</span>
+				//s = SimTime + &quot;,&quot; + SysTime + &quot;,&quot; + blockID + &quot;,&quot; + s + &quot;,blockchain&quot;;
+<span class="nc" id="L94">				structureLog.add(s);</span>
+			}
+<span class="nc bnc" id="L96" title="All 2 branches missed.">			for (String s :orphans) {</span>
+				//s = SimTime + &quot;,&quot; + SysTime + &quot;,&quot; + blockID + &quot;,&quot; + s + &quot;,orphans&quot;;
+<span class="nc" id="L98">				structureLog.add(s);</span>
+			}
+		}
+<span class="nc" id="L101">	}</span>
+	
+
+    /**
+     * Adds a detailed event line for a single block to the block log.
+     * &lt;p&gt;
+     * This includes simulation IDs, node and block IDs, height, involved transactions,
+     * event type, validation difficulty, and mining cycles used.
+     * &lt;/p&gt;
+     *
+     * @param simID      the simulation ID
+     * @param simTime    the simulation time of the event
+     * @param sysTime    the system time of the event 
+     * @param nodeID     the ID of the node relating to the event
+     * @param blockID    the ID of the block
+     * @param parentID   the parent block ID (or -1 if none)
+     * @param height     the height of the block in the chain
+     * @param txInvolved a string listing transactions included in the block
+     * @param blockEvt   a description of the block event (e.g., &quot;Node Complete Validation&quot;)
+     * @param difficulty the mining difficulty under which the block was validated
+     * @param cycles     the number of cycles dedicated to validate the block
+     */
+	public static void reportBlockEvent(
+			int simID,
+			long simTime, long sysTime, int nodeID,
+			int blockID, int parentID, int height, String txInvolved,
+			String blockEvt,
+			double difficulty, //Difficulty: the difficulty under which the block was validated.
+			double cycles) { //Cycles: the number of cycles dedicated to validate the block.
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">		if (BitcoinReporter.reportsBlockEvents())</span>
+<span class="nc" id="L131">		blockLog.add(simID + &quot;,&quot; +</span>
+				simTime + &quot;,&quot; + 
+				sysTime + &quot;,&quot; +
+				nodeID + &quot;,&quot; +
+				blockID + &quot;,&quot; +
+				parentID + &quot;,&quot; +
+				height + &quot;,&quot; +
+				txInvolved + &quot;,&quot; +
+				blockEvt + &quot;,&quot; + //AppendedToChain, AddedAsOrphan, RemovedFromOrphan
+				difficulty + &quot;,&quot; +
+				cycles
+					);
+<span class="fc" id="L143">	}</span>
+
+	/**
+	 * Reports an attack-related event to the attack log.
+	 * &lt;p&gt;
+	 * This method logs significant attack events such as:
+	 * &lt;ul&gt;
+	 *   &lt;li&gt;Target transaction arrival&lt;/li&gt;
+	 *   &lt;li&gt;Attack initiation&lt;/li&gt;
+	 *   &lt;li&gt;Hidden chain block mining&lt;/li&gt;
+	 *   &lt;li&gt;Chain revelation&lt;/li&gt;
+	 * &lt;/ul&gt;
+	 *
+	 * @param simId simulation ID
+	 * @param simTime simulation time when event occurred
+	 * @param sysTime system time when event occurred
+	 * @param nodeId ID of the node involved in the event
+	 * @param eventType type of attack event (e.g., &quot;Target TX Arrival&quot;, &quot;Attack Start&quot;, &quot;Chain Reveal&quot;)
+	 * @param txId transaction ID (if applicable, -1 otherwise)
+	 * @param blockId block ID (if applicable, -1 otherwise)
+	 * @param blockHeight height of the block in the chain (if applicable, -1 otherwise)
+	 * @param hiddenChainLength current length of the attacker's hidden chain
+	 * @param publicChainLength current length of the public chain
+	 * @param description additional description of the event
+	 */
+	public static void reportAttackEvent(int simId, long simTime, long sysTime, int nodeId,
+	                                      String eventType, int txId, int blockId, int blockHeight,
+	                                      int hiddenChainLength, int publicChainLength, String description) {
+<span class="nc bnc" id="L171" title="All 2 branches missed.">		if (BitcoinReporter.reportsAttackEvents()) {</span>
+<span class="nc" id="L172">			attackLog.add(</span>
+					simId + &quot;,&quot; +
+					simTime + &quot;,&quot; +
+					sysTime + &quot;,&quot; +
+					nodeId + &quot;,&quot; +
+					eventType + &quot;,&quot; +
+					txId + &quot;,&quot; +
+					blockId + &quot;,&quot; +
+					blockHeight + &quot;,&quot; +
+					hiddenChainLength + &quot;,&quot; +
+					publicChainLength + &quot;,&quot; +
+					description
+			);
+		}
+<span class="nc" id="L186">	}</span>
+
+    /**
+     * Flushes all custom Bitcoin reports (block events, structure, and attack events) to files.
+     */
+	public static void flushCustomReports() {
+<span class="nc" id="L192">        BitcoinReporter.flushBlockReport();</span>
+<span class="nc" id="L193">        BitcoinReporter.flushStructReport();</span>
+<span class="nc" id="L194">        BitcoinReporter.flushAttackReport();</span>
+<span class="nc" id="L195">	}</span>
+	
+	public static final void flushAll() {
+<span class="nc" id="L198">		Reporter.flushAll();</span>
+<span class="nc" id="L199">		flushCustomReports();</span>
+<span class="nc" id="L200">	}</span>
+	
+	
+	
+	/**
+	 * Save Block report to file. File name is &quot;BlockLog - [Simulation Date Time].csv&quot;
+	 * 
+	 */
+	public static void flushBlockReport() {
+<span class="nc bnc" id="L209" title="All 2 branches missed.">		if (BitcoinReporter.reportsBlockEvents()) {</span>
+			FileWriter writer;
+			try {
+<span class="nc" id="L212">				writer = new FileWriter(Reporter.path + &quot;BlockLog - &quot; + Reporter.runId + &quot;.csv&quot;);</span>
+<span class="nc bnc" id="L213" title="All 2 branches missed.">				for(String str: blockLog) {</span>
+<span class="nc" id="L214">					  writer.write(str + System.lineSeparator());</span>
+<span class="nc" id="L215">					}</span>
+<span class="nc" id="L216">				writer.close();</span>
+<span class="nc" id="L217">			} catch (IOException e) {</span>
+<span class="nc" id="L218">				e.printStackTrace();</span>
+<span class="nc" id="L219">			} </span>
+		}
+<span class="nc" id="L221">	}</span>
+
+
+	/**
+	 * Save Blockchain report to file. File name is &quot;StructureLog - [Simulation Date Time].csv&quot;
+	 *
+	 */
+	public static void flushStructReport() {
+<span class="nc bnc" id="L229" title="All 2 branches missed.">		if (BitcoinReporter.reportsStructureEvents()) {</span>
+			FileWriter writer;
+			try {
+<span class="nc" id="L232">				writer = new FileWriter(Reporter.path + &quot;StructureLog - &quot; + Reporter.runId + &quot;.csv&quot;);</span>
+<span class="nc bnc" id="L233" title="All 2 branches missed.">				for(String str: structureLog) {</span>
+<span class="nc" id="L234">					  writer.write(str + System.lineSeparator());</span>
+<span class="nc" id="L235">					}</span>
+<span class="nc" id="L236">				writer.close();</span>
+<span class="nc" id="L237">			} catch (IOException e) {</span>
+<span class="nc" id="L238">				e.printStackTrace();</span>
+<span class="nc" id="L239">			}</span>
+		}
+<span class="nc" id="L241">	}</span>
+
+	/**
+	 * Save Attack report to file. File name is &quot;AttackLog - [Simulation Date Time].csv&quot;
+	 *
+	 */
+	public static void flushAttackReport() {
+<span class="nc bnc" id="L248" title="All 2 branches missed.">		if (BitcoinReporter.reportsAttackEvents()) {</span>
+			FileWriter writer;
+			try {
+<span class="nc" id="L251">				writer = new FileWriter(Reporter.path + &quot;AttackLog - &quot; + Reporter.runId + &quot;.csv&quot;);</span>
+<span class="nc bnc" id="L252" title="All 2 branches missed.">				for(String str: attackLog) {</span>
+<span class="nc" id="L253">					writer.write(str + System.lineSeparator());</span>
+<span class="nc" id="L254">				}</span>
+<span class="nc" id="L255">				writer.close();</span>
+<span class="nc" id="L256">			} catch (IOException e) {</span>
+<span class="nc" id="L257">				e.printStackTrace();</span>
+<span class="nc" id="L258">			}</span>
+		}
+<span class="nc" id="L260">	}</span>
+
+
+	// -----------------------------------------------
+	// ENABLING / DISABLING REPORT TYPES
+	// -----------------------------------------------
+	
+	
+    /**
+     * Sets whether block-level events should be logged.
+     *
+     * @param reportBlockEvents {@code true} to enable block event reporting, {@code false} to disable
+     */
+	public static void reportBlockEvents(boolean reportBlockEvents) {
+<span class="nc" id="L274">		BitcoinReporter.reportBlockEvents = reportBlockEvents;</span>
+<span class="nc" id="L275">	}</span>
+
+	 /**
+     * Sets whether blockchain structure events should be logged.
+     *
+     * @param reportStructureEvents {@code true} to enable structure event reporting, {@code false} to disable
+     */
+	public static void reportStructureEvents(boolean reportStructureEvents) {
+<span class="nc" id="L283">		BitcoinReporter.reportStructureEvents = reportStructureEvents;</span>
+<span class="nc" id="L284">	}</span>
+
+	/**
+	 * Sets whether attack events should be logged.
+	 *
+	 * @param reportAttackEvents {@code true} to enable attack event reporting, {@code false} to disable
+	 */
+	public static void reportAttackEvents(boolean reportAttackEvents) {
+<span class="nc" id="L292">		BitcoinReporter.reportAttackEvents = reportAttackEvents;</span>
+<span class="nc" id="L293">	}</span>
+
+	public static void reportAttackDetails(boolean reportAttackDetails) {
+<span class="nc" id="L296">		BitcoinReporter.reportAttackDetails = reportAttackDetails;</span>
+<span class="nc" id="L297">	}</span>
+	
+	
+    /**
+     * Returns whether block-level events are being logged.
+     *
+     * @return {@code true} if block event reporting is enabled, {@code false} otherwise
+     */
+    public static boolean reportsBlockEvents() {
+<span class="fc" id="L306">        return BitcoinReporter.reportBlockEvents;</span>
+    }
+
+    /**
+     * Returns whether blockchain structure events are being logged.
+     *
+     * @return {@code true} if structure event reporting is enabled, {@code false} otherwise
+     */
+    public static boolean reportsStructureEvents() {
+<span class="nc" id="L315">        return BitcoinReporter.reportStructureEvents;</span>
+    }
+
+	/**
+	 * Returns whether attack events are being logged.
+	 *
+	 * @return {@code true} if attack event reporting is enabled, {@code false} otherwise
+	 */
+	public static boolean reportsAttackEvents() {
+<span class="fc" id="L324">		return BitcoinReporter.reportAttackEvents;</span>
+	}
+	
+	public static boolean reportsAttackDetails() {
+<span class="fc" id="L328">		return BitcoinReporter.reportAttackDetails;</span>
+	}
+	
+	
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

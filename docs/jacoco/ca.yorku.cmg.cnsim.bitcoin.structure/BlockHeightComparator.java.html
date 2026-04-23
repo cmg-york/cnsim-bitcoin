@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BlockHeightComparator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CNSim-based Implementation of Nakamoto Consensus</a> &gt; <a href="index.source.html" class="el_package">ca.yorku.cmg.cnsim.bitcoin.structure</a> &gt; <span class="el_source">BlockHeightComparator.java</span></div><h1>BlockHeightComparator.java</h1><pre class="source lang-java linenums">package ca.yorku.cmg.cnsim.bitcoin.structure;
+
+import java.util.Comparator;
+
+
+/**
+ * Comparator for {@linkplain Block} objects that orders them
+ * based on their block height, with ties broken by block ID.
+ * &lt;p&gt;
+ * Higher blocks (larger height) are considered &quot;less&quot; to achieve descending order.
+ * &lt;p&gt;
+ * This comparator is suitable for sorting a list of blocks from the most recent to the earliest.
+ * 
+ * @see java.util.Comparator
+ * @see Block
+ * @author Sotirios Liaskos for the Conceptual Modeling Group @ York University
+ */
+<span class="fc" id="L18">public class BlockHeightComparator implements Comparator&lt;Block&gt; {</span>
+
+	
+    /**
+     * Compares two {@linkplain Block} objects.
+     *
+     * &lt;p&gt;The comparison is primarily by block height in descending order. If the heights
+     * are equal, the comparison falls back to the block ID in descending order.&lt;/p&gt;
+     *
+     * @param b1 the first block to compare
+     * @param b2 the second block to compare
+     * @return a negative integer if {@code b1} is &quot;greater&quot; than {@code b2}, 
+     *         a positive integer if {@code b1} is &quot;less&quot; than {@code b2}, 
+     *         or zero if they are considered equal
+     */
+	@Override
+	public int compare(Block b1, Block b2) {
+<span class="fc bfc" id="L35" title="All 2 branches covered.">		if (b1.getHeight() &lt; b2.getHeight())</span>
+<span class="fc" id="L36">			return 1;</span>
+		else 
+<span class="fc bfc" id="L38" title="All 2 branches covered.">			if (b1.getHeight() == b2.getHeight()) </span>
+<span class="fc bfc" id="L39" title="All 2 branches covered.">				if (b1.getID() &lt; b2.getID())</span>
+<span class="fc" id="L40">					return 1;</span>
+				else
+<span class="fc" id="L42">					return -1;</span>
+			else //height is greater
+<span class="fc" id="L44">				return -1;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

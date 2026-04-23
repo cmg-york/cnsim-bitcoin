@@ -1,12 +1,21 @@
-# cnsim-bitcoin: A cnsim instantiation for the Nakamoto protocol
+![CNSim-Bitcoin Logo](src/site/resources/images/logo.png)
+
+# A CNSim instantiation for the Nakamoto protocol
 
 This repo hosts an implementation of Nakamoto consensus using the CNSim engine.
 
 # Quick start
-1. Install `cnsim-engine` library in your local maven repository. 
-	1. TODO: directions needed
-2. `mvn test` for running the tests
+0. It is assumed that you have the latest versions of `maven`, `git` and `Java` installed in your system.
+1. Install the `cnsim-engine` library in your local maven repository. 
+	1. Clone `https://github.com/cmg-york/cnsim-engine/` to your local machine.
+	2. `mvn install`. This installs the cnsim-engine JAR in your local Maven Repository
+2. `mvn test` for running the bitcoin tests
 3. `testRun.sh` for confirming that a complete simulation can be run. Uses property file in  `examples/config/test/sanity/` 
+4. Create your own configurations and simulate as follows. Alternatively create your own 
+```
+mvn exec:java -Dexec.args='-c [path-to-my-configuration]/[my configuration].properties'
+```
+
 
 
 

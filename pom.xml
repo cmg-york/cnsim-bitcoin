@@ -7,9 +7,10 @@
   <artifactId>cnsim-bitcoin</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <packaging>jar</packaging>
-  <name>cnsim-bitcoin</name>
-  <!-- FIXME change it to the project's website -->
-  <url>http://www.example.com</url>
+  <name>CNSim Bitcoin (cnsim-bitcoin)</name>
+  <description>A cnsim-based simulator of Nakamoto Consensus and Hidden Chain Majority Attack. Use the links on the left for documentation.</description>
+  <url>http://cmg-yorku.github.io/cnsim-bitcoin</url>
+  
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

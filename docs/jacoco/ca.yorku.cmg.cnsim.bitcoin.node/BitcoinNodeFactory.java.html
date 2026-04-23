@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BitcoinNodeFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">CNSim-based Implementation of Nakamoto Consensus</a> &gt; <a href="index.source.html" class="el_package">ca.yorku.cmg.cnsim.bitcoin.node</a> &gt; <span class="el_source">BitcoinNodeFactory.java</span></div><h1>BitcoinNodeFactory.java</h1><pre class="source lang-java linenums">package ca.yorku.cmg.cnsim.bitcoin.node;
+
+
+import ca.yorku.cmg.cnsim.engine.Simulation;
+import ca.yorku.cmg.cnsim.engine.config.Config;
+import ca.yorku.cmg.cnsim.engine.exceptions.ConfigurationException;
+import ca.yorku.cmg.cnsim.engine.node.AbstractNodeFactory;
+import ca.yorku.cmg.cnsim.engine.node.IMiner;
+import ca.yorku.cmg.cnsim.engine.node.PoWNodeSet;
+
+/**
+ * A factory for various kinds of blockchain nodes.
+ *
+ * @author Sotirios Liaskos for the Conceptual Modeling Group @ York University`
+ *
+ */
+public class BitcoinNodeFactory extends AbstractNodeFactory {
+
+	String defaultNodeBehavior;
+	PoWNodeSet nodeSet;
+
+	/**
+	 * Create a new factory of a specific type (e.g., Honest, Malicious, etc.) based on the sampler embedded in the Simulator object.
+	 *
+	 * @param defaultNodeType Is one of a list of strings identifying node type. Currently &quot;Honest&quot; is implemented.
+	 * @param sim The simulator to which the node is attached, and from which sampling services are drawn.
+	 */
+<span class="nc" id="L28">	public BitcoinNodeFactory(String defaultNodeBehavior, Simulation sim){</span>
+<span class="nc" id="L29">		this.defaultNodeBehavior = defaultNodeBehavior;</span>
+<span class="nc" id="L30">		this.sim = sim;</span>
+<span class="nc" id="L31">		this.sampler = sim.getSampler();</span>
+<span class="nc" id="L32">	}</span>
+
+<span class="nc" id="L34">	public BitcoinNodeFactory(String defaultNodeBehavior, Simulation sim, PoWNodeSet nodes){</span>
+<span class="nc" id="L35">		this.defaultNodeBehavior = defaultNodeBehavior;</span>
+<span class="nc" id="L36">		this.sim = sim;</span>
+<span class="nc" id="L37">		this.sampler = sim.getSampler();</span>
+<span class="nc" id="L38">		this.nodeSet = nodes;</span>
+<span class="nc" id="L39">	}</span>
+	
+	
+	/**
+	 * Create a new node based on the factory.
+	 */
+	@Override
+	public IMiner createNewNode() {
+		// First, create a BitcoinNode instance without a behavior strategy
+<span class="nc" id="L48">		BitcoinNode node = new BitcoinNode(sim);</span>
+        
+		// Set node properties from the sampler
+<span class="nc" id="L51">		node.setHashPower(sampler.getNodeSampler().getNextNodeHashPower());</span>
+<span class="nc" id="L52">		node.setElectricPower(sampler.getNodeSampler().getNextNodeElectricPower());</span>
+<span class="nc" id="L53">		node.setElectricityCost(sampler.getNodeSampler().getNextNodeElectricityCost());</span>
+<span class="nc" id="L54">		node.setSimulation(sim);</span>
+		
+		// Determine and set the appropriate behavior strategy and update hashpower
+		NodeBehaviorStrategy strategy;
+		
+		
+<span class="nc bnc" id="L60" title="All 3 branches missed.">		switch (defaultNodeBehavior) {</span>
+			case &quot;Hidden Chain Attack&quot; :
+<span class="nc bnc" id="L62" title="All 2 branches missed.">				if (nodeSet == null) {</span>
+<span class="nc" id="L63">					throw new IllegalArgumentException(&quot;Hidden Chain Attack behavior requires access to honest nodeset. Please insantiate factory with BitcoinNodeFactory(String, Simulation, PoWNodeSet)&quot;);</span>
+				}
+<span class="nc" id="L65">				if (</span>
+<span class="nc bnc" id="L66" title="All 2 branches missed.">						Config.hasProperty(&quot;hiddenChainAttack.releaseAdvantage&quot;) &amp;&amp;</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">						Config.hasProperty(&quot;hiddenChainAttack.releaseConfirmations&quot;)) {</span>
+<span class="nc" id="L68">					throw new IllegalStateException(&quot;Hidden Chain Attack: define either releaseAdvantage or releaseConfirmations, not both&quot;);</span>
+				}
+				
+<span class="nc" id="L71">				strategy = new HiddenChainAttackBehavior(node, </span>
+		        		new HonestNodeBehavior(node),
+		        		new HonestNodeBehaviorLimited(node));
+				//Configure it
+<span class="nc" id="L75">				((HiddenChainAttackBehavior) strategy).setTargetTransaction(</span>
+<span class="nc" id="L76">						Config.getPropertyLong(&quot;hiddenChainAttack.targetTransaction&quot;));</span>
+<span class="nc" id="L77">				((HiddenChainAttackBehavior) strategy).setStartAdvantage(</span>
+<span class="nc" id="L78">						Config.getPropertyInt(&quot;hiddenChainAttack.startAdvantage&quot;));</span>
+<span class="nc" id="L79">				((HiddenChainAttackBehavior) strategy).setAttackPower(</span>
+<span class="nc" id="L80">						getMaliciousPower(</span>
+<span class="nc" id="L81">								Config.getPropertyFloat(&quot;hiddenChainAttack.maliciousPowerRatio&quot;),</span>
+<span class="nc" id="L82">								nodeSet.getTotalHashPower() - node.getHashPower()</span>
+								)
+						);
+				
+<span class="nc" id="L86">				((HiddenChainAttackBehavior) strategy).setNetworkHonestPower(</span>
+<span class="nc" id="L87">								nodeSet.getTotalHashPower() - node.getHashPower()</span>
+						);
+				
+
+<span class="nc bnc" id="L91" title="All 2 branches missed.">				if (Config.hasProperty(&quot;hiddenChainAttack.releaseAdvantage&quot;)) {</span>
+<span class="nc" id="L92">					((HiddenChainAttackBehavior) strategy).setReleaseAdvantage(</span>
+<span class="nc" id="L93">							Config.getPropertyInt(&quot;hiddenChainAttack.releaseAdvantage&quot;));</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">				} else if (Config.hasProperty(&quot;hiddenChainAttack.releaseConfirmations&quot;)) {</span>
+<span class="nc" id="L95">					((HiddenChainAttackBehavior) strategy).setReleaseConfirmations(</span>
+<span class="nc" id="L96">							Config.getPropertyInt(&quot;hiddenChainAttack.releaseConfirmations&quot;));</span>
+				} else {
+<span class="nc" id="L98">					throw new IllegalStateException(&quot;Hidden Chain Attack: define either releaseAdvantage or releaseConfirmations, not both&quot;);</span>
+				}
+
+				
+				
+				
+<span class="nc bnc" id="L104" title="All 2 branches missed.">				if (Config.hasProperty(&quot;hiddenChainAttack.attackTimeOut&quot;)) {</span>
+<span class="nc" id="L105">					((HiddenChainAttackBehavior) strategy).setAttackTimeOut(</span>
+<span class="nc" id="L106">							Config.getPropertyLong(&quot;hiddenChainAttack.attackTimeOut&quot;));</span>
+				}
+				
+				//IMPORTANT: enable the attack.
+<span class="nc" id="L110">				((HiddenChainAttackBehavior) strategy).goToMonitoringState();</span>
+				
+<span class="nc" id="L112">				break;</span>
+	
+			case &quot;Honest&quot;:
+<span class="nc" id="L115">				strategy = new HonestNodeBehavior(node);</span>
+<span class="nc" id="L116">				break;</span>
+			
+			default:
+<span class="nc" id="L119">					throw new ConfigurationException(&quot;Unknown node behavior &quot; + defaultNodeBehavior);</span>
+			}
+			
+<span class="nc" id="L122">			node.setBehaviorStrategy(strategy);</span>
+<span class="nc" id="L123">		return node;</span>
+	}
+	
+	private float getMaliciousPower(float maliciousPowerRatio, float totalHonestPower) {
+<span class="nc" id="L127">		return((maliciousPowerRatio/(1-maliciousPowerRatio))*totalHonestPower);</span>
+	}
+	
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>
