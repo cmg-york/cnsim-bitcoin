@@ -1,6 +1,9 @@
 # CNSim: Finality analysis under limited block size.
 Conceptual Modeling Group @ York University
 
+- [Preamble](#preamble)
+  - [Reproduction](#reproduction)
+  - [Data Acquisition](#data-acquisition)
 - [Overview](#overview)
 - [Analysis](#analysis)
   - [Analysis Routines](#analysis-routines)
@@ -11,6 +14,53 @@ Conceptual Modeling Group @ York University
   - [Time to Finality](#time-to-finality)
     - [Gather Data](#gather-data-1)
     - [Graph per block size](#graph-per-block-size-1)
+
+# Preamble
+
+## Reproduction
+
+``` r
+# Main Parameters
+logAnalysisToolPath = "../../../../cnsim-tools/R-Tools/src/logAnalysis/"
+
+#Libraries
+source(paste0(logAnalysisToolPath,"library.R"))
+
+logAnalysisToolPath = "../../cnsim-tools/R-Tools/src/logAnalysis/"
+repo = "cmg-york"
+toolsRepo = paste0("https://github.com/", repo,"/cnsim-tools")
+bitcoinRepo = paste0("https://github.com/", repo,"/cnsim-bitcoin")
+
+toBitRepo <- function(x) {
+  return(paste0(bitcoinRepo,x))
+}
+```
+
+- This document can be reproduced from preexisting data via “knitting”
+  https://github.com/cmg-york/cnsim-bitcoin/examples/configs/size/blocSize.qmd
+  that exists in the same directory. Steps need to be taken for the data
+  to be generated or acquired - see below.
+- The analysis requires R-based logAnalysis tools that can be cloned
+  from https://github.com/cmg-york/cnsim-tools
+- The variable `logAnalysisToolPath` needs to be set to the directory of
+  `logAnalysis` scripts within your local clone of the `cnsim-tools`
+  repo.
+
+## Data Acquisition
+
+- For this experiment data are not available within the repository
+  (files too large).
+- To regenerate data run instances of:
+  `mvn exec:java -Dexec.args='-c ./examples/configs/size/size-factor.properties'`
+  in which the parameter `bitcoin.maxBlockSize` is set respectively to
+  values 35000, 45000, 30000, 40000, 50000, 60000, 70000, 80000, 90000
+  and all else is held as is.
+- To use pre-generated please download from [this
+  link](https://drive.proton.me/urls/T9W1AJHZMM#zpdimOQe0GmF) or user
+  this user-friendly URL: <https://tinyurl.com/ccs2026-1065-blocksize>.
+  Then unzip all the files of the form `size-factor - XXX - YYYYY`
+  inside `examples/results/`, where `XXX` is the workload size
+  (different for each analysis) and `YYYYY` is the block size.
 
 # Overview
 
@@ -91,10 +141,6 @@ nodes validate old left-over transactions.
 ### Gather Data
 
 ``` r
-#finalityCrossF %>% distinct(Run,BlockSize) %>% arrange(desc(Run))
-#Fruns = unique(finalityCrossF$Run)
-#Bsizes = unique(finalityCrossF$BlockSize)
-
 block_sizes = c(35000,45000,seq(30000,90000,by = 10000))
 
 finalityRuns = paste0("size-factor - 300 - ",block_sizes)
@@ -126,34 +172,6 @@ for (i in 1:length(finalityRuns)) {
 }
 ```
 
-    [1] "[prepareGraphData]: Calculating time span."
-    [1] "[prepareGraphData]: Grouping by Simulation ID."
-    [1] "[prepareGraphData]: Preparing dataset."
-    [1] "[prepareGraphData]: Calculating time span."
-    [1] "[prepareGraphData]: Grouping by Simulation ID."
-    [1] "[prepareGraphData]: Preparing dataset."
-    [1] "[prepareGraphData]: Calculating time span."
-    [1] "[prepareGraphData]: Grouping by Simulation ID."
-    [1] "[prepareGraphData]: Preparing dataset."
-    [1] "[prepareGraphData]: Calculating time span."
-    [1] "[prepareGraphData]: Grouping by Simulation ID."
-    [1] "[prepareGraphData]: Preparing dataset."
-    [1] "[prepareGraphData]: Calculating time span."
-    [1] "[prepareGraphData]: Grouping by Simulation ID."
-    [1] "[prepareGraphData]: Preparing dataset."
-    [1] "[prepareGraphData]: Calculating time span."
-    [1] "[prepareGraphData]: Grouping by Simulation ID."
-    [1] "[prepareGraphData]: Preparing dataset."
-    [1] "[prepareGraphData]: Calculating time span."
-    [1] "[prepareGraphData]: Grouping by Simulation ID."
-    [1] "[prepareGraphData]: Preparing dataset."
-    [1] "[prepareGraphData]: Calculating time span."
-    [1] "[prepareGraphData]: Grouping by Simulation ID."
-    [1] "[prepareGraphData]: Preparing dataset."
-    [1] "[prepareGraphData]: Calculating time span."
-    [1] "[prepareGraphData]: Grouping by Simulation ID."
-    [1] "[prepareGraphData]: Preparing dataset."
-
 ### Graph per Block Size
 
 In the graph below $63kB$ is the block size at which the incoming flow
@@ -184,10 +202,10 @@ finalityGraph.1 <- ggplot(data =
     plot.title = element_text(size = 15, face = "bold")
     #legend.position = "bottom"
   )
-finalityGraph.1 
 ```
 
-![](blockSize_files/figure-commonmark/unnamed-chunk-7-1.png)
+![Transaction finality vs. Block
+Size](blockSize_files/figure-commonmark/unnamed-chunk-8-1.png)
 
 ### Individual Graphs
 
@@ -214,11 +232,6 @@ b30 <- getBeliefGraph(graph.data.result %>% filter(bsize == 30000), xlim = c("0:
       hjust = 0,                  # flush left
       color = "darkred"
     )
-```
-
-    [1] "[getBeliefGraph]: Producing graph."
-
-``` r
 b90 <- getBeliefGraph(graph.data.result %>% filter(bsize == 90000), xlim = c("0:00","1:00:00"),titleSuffix = ": 90kB Block") +
   theme(
     axis.title.x = element_text(size = 14),
@@ -238,13 +251,12 @@ b90 <- getBeliefGraph(graph.data.result %>% filter(bsize == 90000), xlim = c("0:
     ) 
 ```
 
-    [1] "[getBeliefGraph]: Producing graph."
-
 ``` r
 grid.arrange(b30,b90,nrow = 1)
 ```
 
-![](blockSize_files/figure-commonmark/unnamed-chunk-8-1.png)
+![Belief Progression Graphs under 30k vs 90k
+blocks](blockSize_files/figure-commonmark/unnamed-chunk-10-1.png)
 
 ## Time to Finality
 
@@ -255,10 +267,6 @@ transactions are validated. The time to finality is then measured.
 ### Gather Data
 
 ``` r
-#Fruns = unique(finalityCross$Run)
-#Bsizes = unique(finalityCross$BlockSize)
-#finalityCross %>% distinct(Run,BlockSize) %>% arrange(desc(Run))
-
 block_sizes = c(35000,45000,55000,seq(30000,90000,by = 10000))
 
 finalityRuns = paste0("size-factor - 100 - ",block_sizes)
@@ -289,37 +297,6 @@ for (i in 1:length(finalityRuns)) {
                                   bsize =block_size))
 }
 ```
-
-    [1] "[prepareGraphData]: Calculating time span."
-    [1] "[prepareGraphData]: Grouping by Simulation ID."
-    [1] "[prepareGraphData]: Preparing dataset."
-    [1] "[prepareGraphData]: Calculating time span."
-    [1] "[prepareGraphData]: Grouping by Simulation ID."
-    [1] "[prepareGraphData]: Preparing dataset."
-    [1] "[prepareGraphData]: Calculating time span."
-    [1] "[prepareGraphData]: Grouping by Simulation ID."
-    [1] "[prepareGraphData]: Preparing dataset."
-    [1] "[prepareGraphData]: Calculating time span."
-    [1] "[prepareGraphData]: Grouping by Simulation ID."
-    [1] "[prepareGraphData]: Preparing dataset."
-    [1] "[prepareGraphData]: Calculating time span."
-    [1] "[prepareGraphData]: Grouping by Simulation ID."
-    [1] "[prepareGraphData]: Preparing dataset."
-    [1] "[prepareGraphData]: Calculating time span."
-    [1] "[prepareGraphData]: Grouping by Simulation ID."
-    [1] "[prepareGraphData]: Preparing dataset."
-    [1] "[prepareGraphData]: Calculating time span."
-    [1] "[prepareGraphData]: Grouping by Simulation ID."
-    [1] "[prepareGraphData]: Preparing dataset."
-    [1] "[prepareGraphData]: Calculating time span."
-    [1] "[prepareGraphData]: Grouping by Simulation ID."
-    [1] "[prepareGraphData]: Preparing dataset."
-    [1] "[prepareGraphData]: Calculating time span."
-    [1] "[prepareGraphData]: Grouping by Simulation ID."
-    [1] "[prepareGraphData]: Preparing dataset."
-    [1] "[prepareGraphData]: Calculating time span."
-    [1] "[prepareGraphData]: Grouping by Simulation ID."
-    [1] "[prepareGraphData]: Preparing dataset."
 
 ### Graph per block size
 
@@ -356,7 +333,6 @@ timeToFinalityGraph <- ggplot(data = time.to.finalities, aes(x = bsize, y=TimeFi
     plot.title = element_text(size = 15, face = "bold")
     #legend.position = "bottom"
   )
-timeToFinalityGraph
 ```
 
-![](blockSize_files/figure-commonmark/unnamed-chunk-10-1.png)
+![](blockSize_files/figure-commonmark/unnamed-chunk-13-1.png)

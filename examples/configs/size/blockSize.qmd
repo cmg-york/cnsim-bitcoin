@@ -16,6 +16,39 @@ knitr::opts_chunk$set(
 )
 ```
 
+# Preamble
+
+## Reproduction
+
+  
+```{R warning=FALSE, message=FALSE}
+# Main Parameters
+logAnalysisToolPath = "../../../../cnsim-tools/R-Tools/src/logAnalysis/"
+
+#Libraries
+source(paste0(logAnalysisToolPath,"library.R"))
+
+logAnalysisToolPath = "../../cnsim-tools/R-Tools/src/logAnalysis/"
+repo = "cmg-york"
+toolsRepo = paste0("https://github.com/", repo,"/cnsim-tools")
+bitcoinRepo = paste0("https://github.com/", repo,"/cnsim-bitcoin")
+
+toBitRepo <- function(x) {
+  return(paste0(bitcoinRepo,x))
+}
+```
+  
+- This document can be reproduced from preexisting data via "knitting" `r toBitRepo("/examples/configs/size/blocSize.qmd")` that exists in the same directory. Steps need to be taken for the data to be generated or acquired - see below.
+- The analysis requires R-based logAnalysis tools that can be cloned from `r toolsRepo`
+- The variable `logAnalysisToolPath` needs to be set to the directory of
+  `logAnalysis` scripts within your local clone of the `cnsim-tools` repo.
+  
+
+## Data Acquisition
+- For this experiment data are not available within the repository (files too large).
+- To regenerate data run instances of: `mvn exec:java -Dexec.args='-c ./examples/configs/size/size-factor.properties'` in which the parameter `bitcoin.maxBlockSize` is set respectively to values `r format(c(35000,45000,seq(30000,90000,by = 10000)), scientific = FALSE)` and all else is held as is.
+- To use pre-generated please download from [this link](https://drive.proton.me/urls/T9W1AJHZMM#zpdimOQe0GmF) or user this user-friendly URL: [https://tinyurl.com/ccs2026-1065-blocksize](https://tinyurl.com/ccs2026-1065-blocksize). Then unzip all the files of the form `size-factor - XXX - YYYYY` inside `examples/results/`, where `XXX` is the workload size (different for each analysis) and `YYYYY` is the block size. 
+
 
 # Overview
 
@@ -36,13 +69,6 @@ qnorm(c(0.1,0.25,0.5,0.75,0.95), mean = mean_val, sd = sd_val)
 
 Variable `logAnalysisToolPath` must point to the `cnsim-tools/R-Tools/src/logAnalysis/` directory of `cnsim-tools`.
 
-```{R echo = FALSE, warning=FALSE, message=FALSE}
-# Main Parameters
-logAnalysisToolPath = "../../../../cnsim-tools/R-Tools/src/logAnalysis/"
-
-#Libraries
-source(paste0(logAnalysisToolPath,"library.R"))
-```
 
 ## Analysis Routines
 
@@ -57,7 +83,7 @@ c(35000,45000,seq(30000,90000,by = 10000))
 
 analyzeExperiment <- function(experiment,bsize) {
   #Output folder
-  outputFolder = "../../results/"
+  outputFolder = "../../results/blockSize/"
 
   # Other Parameters
   txVector = c(10,20,30,40,50)
@@ -136,9 +162,7 @@ Below we analyze 100 experimental runs for a number of different block sizes ran
 
 ### Gather Data
 ```{R }
-#finalityCrossF %>% distinct(Run,BlockSize) %>% arrange(desc(Run))
-#Fruns = unique(finalityCrossF$Run)
-#Bsizes = unique(finalityCrossF$BlockSize)
+#| results: 'hide'
 
 block_sizes = c(35000,45000,seq(30000,90000,by = 10000))
 
@@ -199,14 +223,25 @@ finalityGraph.1 <- ggplot(data =
     plot.title = element_text(size = 15, face = "bold")
     #legend.position = "bottom"
   )
-finalityGraph.1 
+
+
 ```
+
+```{R echo = FALSE}
+#| fig-cap: "Transaction finality vs. Block Size"
+#| fig-width: 8
+#| fig-height: 5.5
+
+print(finalityGraph.1)
+```
+
 
 ### Individual Graphs
 
 In the graph below the progression of belief in the two extreme block sizes tried is seen.
 
 ```{R }
+#| results: 'hide'
 threshold = 0.9
 
 b30 <- getBeliefGraph(graph.data.result %>% filter(bsize == 30000), xlim = c("0:00","1:00:00"),titleSuffix = ": 30kB Block") +
@@ -243,6 +278,14 @@ b90 <- getBeliefGraph(graph.data.result %>% filter(bsize == 90000), xlim = c("0:
       hjust = 0,                  # flush left
       color = "darkred"
     ) 
+
+```
+
+```{R }
+#| fig-cap: "Belief Progression Graphs under 30k vs 90k blocks"
+#| fig-width: 8
+#| fig-height: 5
+
 grid.arrange(b30,b90,nrow = 1)
 ```
 
@@ -253,9 +296,7 @@ We now run the same experiment for 100 incoming transactions (instead of 300) an
 
 ### Gather Data
 ```{R }
-#Fruns = unique(finalityCross$Run)
-#Bsizes = unique(finalityCross$BlockSize)
-#finalityCross %>% distinct(Run,BlockSize) %>% arrange(desc(Run))
+#| results: 'hide'
 
 block_sizes = c(35000,45000,55000,seq(30000,90000,by = 10000))
 
@@ -326,9 +367,11 @@ timeToFinalityGraph <- ggplot(data = time.to.finalities, aes(x = bsize, y=TimeFi
     plot.title = element_text(size = 15, face = "bold")
     #legend.position = "bottom"
   )
-timeToFinalityGraph
 ```
 
 
+```{R echo = FALSE}
+print(timeToFinalityGraph)
+```
 
 

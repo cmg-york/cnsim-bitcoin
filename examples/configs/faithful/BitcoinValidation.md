@@ -19,9 +19,9 @@
   <https://github.com/cmg-york/cnsim-bitcoin/examples/configs/faithful/BitcoinValidation.Rmd>
   that exists in the same directory.
 - The analysis requires R-based logAnalysis tools that can be cloned
-  from <https://github.com/cmg-york/cnsim-bitcoin>
+  from <https://github.com/cmg-york/cnsim-tools>
 - The variable `logAnalysisToolPath` needs to be set to the directory of
-  logAnalysis scripts.
+  `logAnalysis` scripts within your local clone of the `cnsim-tools` repo.
 - To regenerate data run 6 separate instances of:
   `mvn exec:java -Dexec.args='-c ./examples/configs/faithful/bitcoin.faithful.10node.30sim.X-Y.properties'`
   where `X` and `Y` the id’s of the simulations. Then have each
